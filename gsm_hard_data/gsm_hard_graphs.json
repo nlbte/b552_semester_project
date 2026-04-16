@@ -1,0 +1,104 @@
+[
+  {
+    "question_id": "gsm-hard-0",
+    "steps": [
+      {
+        "id": "S1",
+        "text": "Total slices = 7364990",
+        "depends_on": [],
+        "op": "extract_fact"
+      },
+      {
+        "id": "S2",
+        "text": "Abby eats 2 slices per day",
+        "depends_on": [],
+        "op": "extract_fact"
+      },
+      {
+        "id": "S3",
+        "text": "Josh eats twice as many slices as Abby = 2 * 2 = 4 slices per day",
+        "depends_on": [
+          "S2"
+        ],
+        "op": "arithmetic"
+      },
+      {
+        "id": "S4",
+        "text": "Combined daily consumption = Abby + Josh = 2 + 4 = 6 slices per day",
+        "depends_on": [
+          "S2",
+          "S3"
+        ],
+        "op": "arithmetic"
+      },
+      {
+        "id": "S5",
+        "text": "Number of days = total slices / daily consumption = 7364990 / 6 = 1227498.333333333...",
+        "depends_on": [
+          "S1",
+          "S4"
+        ],
+        "op": "arithmetic"
+      },
+      {
+        "id": "S6",
+        "text": "Final answer = 1227498.333333333",
+        "depends_on": [
+          "S5"
+        ],
+        "op": "conclude"
+      }
+    ],
+    "final_answer": "1227498.333333333",
+    "gold_answer": 1227498.3333333333,
+    "is_correct": true,
+    "_meta": {
+      "trace_model": "gpt-oss:120b-cloud",
+      "graph_model": "gpt-oss:120b-cloud",
+      "source_file": "gsm_hard_traces.jsonl"
+    }
+  },
+  {
+    "question_id": "gsm-hard-1",
+    "steps": [
+      {
+        "id": "S1",
+        "text": "Samantha's current age is 3473626",
+        "depends_on": [],
+        "op": "extract_fact"
+      },
+      {
+        "id": "S2",
+        "text": "Raymond's age = Samantha's age + 6 = 3473632",
+        "depends_on": [
+          "S1"
+        ],
+        "op": "arithmetic"
+      },
+      {
+        "id": "S3",
+        "text": "Years ago Raymond's son was born = Raymond's age - 23 = 3473609",
+        "depends_on": [
+          "S2"
+        ],
+        "op": "arithmetic"
+      },
+      {
+        "id": "S4",
+        "text": "The answer is 3473609 years ago",
+        "depends_on": [
+          "S3"
+        ],
+        "op": "conclude"
+      }
+    ],
+    "final_answer": "3473609",
+    "gold_answer": 3473609.0,
+    "is_correct": true,
+    "_meta": {
+      "trace_model": "gpt-oss:120b-cloud",
+      "graph_model": "gpt-oss:120b-cloud",
+      "source_file": "gsm_hard_traces.jsonl"
+    }
+  }
+]

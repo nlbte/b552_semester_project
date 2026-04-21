@@ -9,6 +9,8 @@ Usage:
     python gsm_hard_ollama.py                               # gpt-oss:120b, 50 samples
     python gsm_hard_ollama.py --model deepseek-v3.1:671b    # bigger model
     python gsm_hard_ollama.py --sample-size 200             # more samples
+    python gsm_hard_ollama.py --sample-size 150 --exclude-from gsm_hard_data/gsm_hard_traces.jsonl \\
+        --output-dir gsm_hard_data_batch2 --id-prefix b2 --seed 43
 
 Loads OLLAMA_API_KEY from the environment, then from .env in this directory,
 then prompts via getpass if still unset.
@@ -65,6 +67,25 @@ def load_ollama_api_key() -> str:
 
 def build_prompt(question: str) -> str:
     return question.strip()
+
+
+def load_excluded_question_keys(paths: list[Path]) -> set[str]:
+    """Normalize question text from prior jsonl rows (input / question / user_prompt)."""
+    keys: set[str] = set()
+    for path in paths:
+        if not path.is_file():
+            print(f"  warning: exclude-from file not found: {path}", file=sys.stderr)
+            continue
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                obj = json.loads(line)
+                text = obj.get("input") or obj.get("question") or obj.get("user_prompt")
+                if text is not None:
+                    keys.add(build_prompt(str(text)))
+    return keys
 
 
 def extract_final_answer(trace: str) -> str | None:
@@ -170,8 +191,30 @@ def run(args: argparse.Namespace) -> None:
     df = dataset.to_pandas()
     print(f"  total questions: {len(df)}")
 
-    sample = df.sample(n=min(args.sample_size, len(df)), random_state=args.seed).reset_index(drop=True)
-    sample["id"] = [f"gsm-hard-{i}" for i in range(len(sample))]
+    exclude_paths = [Path(p).expanduser() for p in args.exclude_from]
+    if exclude_paths:
+        excluded = load_excluded_question_keys(exclude_paths)
+        df["_qkey"] = df["input"].map(lambda x: build_prompt(str(x)))
+        before = len(df)
+        df = df.loc[~df["_qkey"].isin(excluded)].drop(columns=["_qkey"]).reset_index(drop=True)
+        print(f"  excluded {before - len(df)} already-seen questions ({len(excluded)} unique keys in exclude files)")
+        print(f"  pool size after exclusion: {len(df)}")
+        if len(df) == 0:
+            print("No rows left after exclusion — add fewer --exclude-from files or check paths.", file=sys.stderr)
+            sys.exit(1)
+
+    n_take = min(args.sample_size, len(df))
+    if n_take < args.sample_size:
+        print(
+            f"  warning: only {n_take} rows available (asked for {args.sample_size}); sampling all remaining.",
+            file=sys.stderr,
+        )
+    sample = df.sample(n=n_take, random_state=args.seed).reset_index(drop=True)
+    pfx = args.id_prefix.strip()
+    if pfx:
+        sample["id"] = [f"gsm-hard-{pfx}-{i}" for i in range(len(sample))]
+    else:
+        sample["id"] = [f"gsm-hard-{i}" for i in range(len(sample))]
     print(f"  sample size: {len(sample)}")
 
     export_cols = ["id", "input", "target"]
@@ -269,6 +312,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-predict", type=int, default=4096)
     p.add_argument("--sleep", type=float, default=0.5, help="seconds to sleep between requests")
     p.add_argument("--checkpoint-every", type=int, default=10)
+    p.add_argument(
+        "--exclude-from",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="jsonl with input, question, or user_prompt per line, those problems are removed before sampling (repeat flag for multiple files).",
+    )
+    p.add_argument(
+        "--id-prefix",
+        default="",
+        help="run id prefix, e.g. b2 -> gsm-hard-b2-0 (avoids clashing ids if we merge jsonl later).",
+    )
     return p.parse_args()
 
 

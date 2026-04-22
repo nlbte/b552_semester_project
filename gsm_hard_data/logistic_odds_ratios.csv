@@ -1,0 +1,7 @@
+feature,OR,coef,p_value,sig
+depth,0.673,-0.396,0.0154,**
+const,10.908,2.39,0.0738,*
+orphan_nodes,0.457,-0.783,0.0969,*
+frac_facts,30.603,3.421,0.1125,
+max_out_degree,0.894,-0.112,0.6842,
+unsupported_arithmetic,2969572252171394.0,35.627,1.0,

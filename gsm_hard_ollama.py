@@ -16,6 +16,12 @@ Usage:
     python gsm_hard_ollama.py --from-sample-jsonl gsm_hard_data_batch2/gsm_hard_sample.jsonl \\
         --output-dir runs/trace_t0_v1 --temperature 0 --run-label t0_v1
 
+    # Retry failed ids only + patch existing gsm_hard_traces.jsonl (no overwriting sample/prompts/run_meta):
+    # python gsm_hard_ollama.py --model gemma4:31b-cloud \\
+    #   --from-sample-jsonl experiments/manifest_aligned_graphs_all.jsonl \\
+    #   --output-dir experiments --only-ids-from-errors experiments/gemma4-31b-cloud/gsm_hard_errors.jsonl \\
+    #   --merge-traces-into experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl
+
     python gsm_hard_ollama.py --sample-size 150 --exclude-from gsm_hard_data/gsm_hard_traces.jsonl \\
         --output-dir gsm_hard_data_batch2 --id-prefix b2 --seed 43
 
@@ -148,6 +154,30 @@ def check_correctness(predicted: str | None, gold: float, rel_tol: float = 1e-4,
     return math.isclose(pred, float(gold), rel_tol=rel_tol, abs_tol=abs_tol)
 
 
+def load_ids_from_errors_jsonl(path: Path) -> set[str]:
+    """Load gsm_hard_errors-style JSONL: one object per line with key 'id'."""
+    p = path.expanduser()
+    if not p.is_file():
+        print(f"error: --only-ids-from-errors file not found: {p}", file=sys.stderr)
+        sys.exit(1)
+    ids: set[str] = set()
+    with open(p, encoding="utf-8") as f:
+        for line_no, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as e:
+                print(f"{p}:{line_no}: invalid JSON: {e}", file=sys.stderr)
+                sys.exit(1)
+            if "id" not in rec:
+                print(f"{p}:{line_no}: missing id", file=sys.stderr)
+                sys.exit(1)
+            ids.add(str(rec["id"]))
+    return ids
+
+
 def load_rows_from_sample_jsonl(paths: list[Path]) -> list[dict[str, Any]]:
     """Load {id, input, target} rows from one or more gsm_hard_sample-style JSONL files (order preserved)."""
     rows: list[dict[str, Any]] = []
@@ -260,6 +290,19 @@ def run(args: argparse.Namespace) -> None:
 
     manifest_paths = [Path(p).expanduser() for p in args.from_sample_jsonl]
 
+    merge_trace_file: Path | None = Path(args.merge_traces_into).expanduser() if args.merge_traces_into else None
+    patch_traces = merge_trace_file is not None
+    if merge_trace_file is not None:
+        if not manifest_paths:
+            print("error: --merge-traces-into requires manifest mode (--from-sample-jsonl).", file=sys.stderr)
+            sys.exit(1)
+        if not merge_trace_file.is_file():
+            print(f"error: --merge-traces-into file not found: {merge_trace_file}", file=sys.stderr)
+            sys.exit(1)
+    if args.only_ids_from_errors and not manifest_paths:
+        print("error: --only-ids-from-errors requires --from-sample-jsonl.", file=sys.stderr)
+        sys.exit(1)
+
     if manifest_paths:
         print("Manifest mode: loading fixed problem list from JSONL (no HF re-sample).")
         if args.exclude_from:
@@ -268,6 +311,15 @@ def run(args: argparse.Namespace) -> None:
             print("  note: --id-prefix is ignored in manifest mode (ids come from the files).", file=sys.stderr)
         row_dicts = load_rows_from_sample_jsonl(manifest_paths)
         print(f"  loaded {len(row_dicts)} problems from {len(manifest_paths)} file(s)")
+        if args.only_ids_from_errors:
+            err_path = Path(args.only_ids_from_errors).expanduser()
+            want = load_ids_from_errors_jsonl(err_path)
+            before = len(row_dicts)
+            row_dicts = [r for r in row_dicts if r["id"] in want]
+            print(f"  --only-ids-from-errors {err_path}: {before} → {len(row_dicts)} problems")
+            if len(row_dicts) == 0:
+                print("No rows left after filtering — check ids match the manifest.", file=sys.stderr)
+                sys.exit(1)
     else:
         print("Loading reasoning-machines/gsm-hard (split=train)...")
         dataset = load_dataset("reasoning-machines/gsm-hard", split="train")
@@ -304,7 +356,7 @@ def run(args: argparse.Namespace) -> None:
 
         row_dicts = sample.to_dict(orient="records")
 
-    if manifest_paths:
+    if manifest_paths and not patch_traces:
         with open(output_dir / "gsm_hard_sample.jsonl", "w", encoding="utf-8") as f:
             for r in row_dicts:
                 f.write(json.dumps({"id": r["id"], "input": r["input"], "target": r["target"]}) + "\n")
@@ -317,10 +369,17 @@ def run(args: argparse.Namespace) -> None:
             "user_prompt": build_prompt(str(row["input"])),
             "gold_answer": float(row["target"]),
         })
-    with open(output_dir / "gsm_hard_prompts.jsonl", "w") as f:
-        for p in prompts:
-            f.write(json.dumps(p) + "\n")
+    if not patch_traces:
+        with open(output_dir / "gsm_hard_prompts.jsonl", "w") as f:
+            for p in prompts:
+                f.write(json.dumps(p) + "\n")
     print(f"Built {len(prompts)} prompts")
+    if patch_traces:
+        print(
+            "Patch mode (--merge-traces-into): not overwriting gsm_hard_sample.jsonl, "
+            "gsm_hard_prompts.jsonl, or run_meta.json",
+            file=sys.stderr,
+        )
 
     mode = "manifest" if manifest_paths else "hf_sample"
     run_meta = {
@@ -337,11 +396,14 @@ def run(args: argparse.Namespace) -> None:
         "seed": args.seed if mode == "hf_sample" else None,
         "sample_size_requested": args.sample_size if mode == "hf_sample" else None,
         "n_prompts": len(prompts),
+        "only_ids_from_errors": str(Path(args.only_ids_from_errors).expanduser()) if args.only_ids_from_errors else None,
+        "merge_traces_into": str(Path(args.merge_traces_into).expanduser()) if args.merge_traces_into else None,
     }
-    meta_path = output_dir / "run_meta.json"
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(run_meta, f, indent=2)
-    print(f"Wrote {meta_path}")
+    if not patch_traces:
+        meta_path = output_dir / "run_meta.json"
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(run_meta, f, indent=2)
+        print(f"Wrote {meta_path}")
     print(f"Decoder temperature={args.temperature}")
 
     client = Client(
@@ -395,16 +457,69 @@ def run(args: argparse.Namespace) -> None:
                 for r in all_results:
                     f.write(json.dumps(r) + "\n")
             correct_so_far = sum(1 for r in all_results if r["correct"])
-            print(f"  >> checkpoint: {len(all_results)} traces, {correct_so_far} correct")
+            extra = " (retry batch)" if merge_trace_file else ""
+            print(f"  >> checkpoint: {len(all_results)} traces, {correct_so_far} correct{extra}")
 
-    with open(traces_path, "w") as f:
+    traces_written: Path | None = None
+    if merge_trace_file is not None:
+        merged_out: list[dict[str, Any]] = []
+        patch_by_id = {r["id"]: r for r in all_results}
+        orphan_patches = set(patch_by_id.keys())
+        for line in merge_trace_file.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            obj = json.loads(line)
+            rid = obj["id"]
+            orphan_patches.discard(rid)
+            if rid in patch_by_id:
+                merged_out.append(patch_by_id[rid])
+            else:
+                merged_out.append(obj)
+        if orphan_patches:
+            print(
+                f"warning: these ids were rerun but absent from merge file — appending (unexpected): "
+                f"{sorted(orphan_patches)}",
+                file=sys.stderr,
+            )
+            for oid in sorted(orphan_patches):
+                merged_out.append(patch_by_id[oid])
+        with merge_trace_file.open("w", encoding="utf-8") as f:
+            for row in merged_out:
+                f.write(json.dumps(row) + "\n")
+        traces_written = merge_trace_file.resolve()
+
+        errs_path = output_dir / "gsm_hard_errors.jsonl"
+        err_map: dict[str, str] = {}
+        if errs_path.is_file():
+            for ln in errs_path.read_text(encoding="utf-8").splitlines():
+                if not ln.strip():
+                    continue
+                eob = json.loads(ln)
+                err_map[str(eob["id"])] = str(eob["error"])
         for r in all_results:
-            f.write(json.dumps(r) + "\n")
+            err_map.pop(r["id"], None)
+        for e in all_errors:
+            err_map[e["id"]] = e["error"]
+        if err_map:
+            with errs_path.open("w", encoding="utf-8") as fe:
+                for oid in sorted(err_map.keys()):
+                    fe.write(json.dumps({"id": oid, "error": err_map[oid]}) + "\n")
+            print(f"Updated {errs_path} ({len(err_map)} leftover error ids)")
+        else:
+            if errs_path.is_file():
+                errs_path.unlink()
+            print(f"Cleared {errs_path} (no remaining errors from merge run)")
+    else:
+        with open(traces_path, "w") as f:
+            for r in all_results:
+                f.write(json.dumps(r) + "\n")
+        if all_errors:
+            with open(output_dir / "gsm_hard_errors.jsonl", "w") as f:
+                for e in all_errors:
+                    f.write(json.dumps(e) + "\n")
+        traces_written = traces_path.resolve()
 
-    if all_errors:
-        with open(output_dir / "gsm_hard_errors.jsonl", "w") as f:
-            for e in all_errors:
-                f.write(json.dumps(e) + "\n")
+    traces_out_note = str(traces_written) if traces_written is not None else str(traces_path.resolve())
 
     print()
     print("=" * 60)
@@ -421,7 +536,7 @@ def run(args: argparse.Namespace) -> None:
             f"median={results_df['output_tokens'].median():.0f}"
         )
     print(f"Errors: {len(all_errors)}")
-    print(f"Traces saved to: {traces_path}")
+    print(f"Traces saved to: {traces_out_note}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -469,6 +584,22 @@ def parse_args() -> argparse.Namespace:
         "--flat-output",
         action="store_true",
         help="Write gsm_hard_*.jsonl directly under --output-dir (no model subfolder). Default: nest under a folder named from the model.",
+    )
+    p.add_argument(
+        "--only-ids-from-errors",
+        metavar="PATH",
+        default=None,
+        help="With --from-sample-jsonl: only run ids listed in this gsm_hard_errors-style JSONL.",
+    )
+    p.add_argument(
+        "--merge-traces-into",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Merge rerun traces into this existing gsm_hard_traces.jsonl by id (keeps lineup for other ids). "
+            "Skip rewriting gsm_hard_sample.jsonl, gsm_hard_prompts.jsonl, run_meta.json. "
+            "Merges gsm_hard_errors.jsonl by removing reran successes and recording new failures."
+        ),
     )
     return p.parse_args()
 

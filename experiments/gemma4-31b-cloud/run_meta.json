@@ -1,0 +1,17 @@
+{
+  "started_at_utc": "2026-05-01T20:54:30.811505+00:00",
+  "mode": "manifest",
+  "manifest_paths": [
+    "experiments/manifest_aligned_graphs_all.jsonl"
+  ],
+  "output_dir_base": "/teamspace/studios/this_studio/experiments",
+  "output_dir": "/teamspace/studios/this_studio/experiments/gemma4-31b-cloud",
+  "flat_output": false,
+  "model": "gemma4:31b-cloud",
+  "model_slug": "gemma4-31b-cloud",
+  "run_label": "gemma31b_t0",
+  "temperature": 0.0,
+  "seed": null,
+  "sample_size_requested": null,
+  "n_prompts": 200
+}

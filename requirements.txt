@@ -3,3 +3,8 @@ ollama
 pandas
 matplotlib
 python-dotenv>=1.0.0
+numpy
+scipy
+networkx
+statsmodels
+anthropic

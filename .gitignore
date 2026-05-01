@@ -1,3 +1,28 @@
 .env
 .claude
+.git-credentials
+runs/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Local / workspace noise
+.bash_history
+.zsh_history
+.lesshst
+.viminfo
+.wget-hsts
+.zcompdump
+
+# Editors / cloud studio
+/.idea/
+/.vscode/
+.lightning_studio/

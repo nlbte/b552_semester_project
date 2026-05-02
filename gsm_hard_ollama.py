@@ -214,6 +214,109 @@ def load_rows_from_sample_jsonl(paths: list[Path]) -> list[dict[str, Any]]:
     return rows
 
 
+def trace_record_is_correct(record: dict[str, Any]) -> bool:
+    """Use stored correctness when present (new runs); recompute otherwise."""
+    if record.get("_stub"):
+        return False
+    if "correct" in record:
+        return bool(record["correct"])
+    ex = extract_final_answer(record.get("answer_text", ""))
+    ga = record.get("gold_answer")
+    if ga is None:
+        return False
+    return check_correctness(ex, float(ga))
+
+
+def stub_trace_row(manifest_row: dict[str, Any], reason: str) -> dict[str, Any]:
+    """Placeholder trace so gsm_hard_traces.jsonl stays 1:1 with manifest order (API skip / hole)."""
+    rid = str(manifest_row["id"])
+    q = build_prompt(str(manifest_row["input"]))
+    ga = float(manifest_row["target"])
+    return {
+        "id": rid,
+        "model": "",
+        "question": q,
+        "thinking_trace": "",
+        "answer_text": "",
+        "full_trace": "",
+        "gold_answer": ga,
+        "prompt_tokens": 0,
+        "output_tokens": 0,
+        "predicted_answer": None,
+        "correct": False,
+        "_stub": True,
+        "_stub_reason": reason,
+    }
+
+
+def merge_traces_aligned_to_manifest(
+    merge_target: Path | None,
+    manifest_paths: list[Path],
+    patch_rows: list[dict[str, Any]],
+    *,
+    placeholders_for_missing: bool = True,
+) -> tuple[list[dict[str, Any]], list[str], list[str], int, int]:
+    """Load traces from merge_target (if given and exists), overwrite ids from patch_rows, emit manifest order.
+
+    When placeholders_for_missing is True (default): every manifest id gets one JSONL row; missing completions
+    become stub rows (counted separately from wrong model answers vs gold).
+
+    Returns: ordered_rows, ids_that_needed_placeholder, stray_ids, manifest_len, n_placeholders.
+    """
+    by_id: dict[str, dict[str, Any]] = {}
+    if merge_target is not None and merge_target.is_file():
+        for line in merge_target.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            obj = json.loads(line)
+            by_id[str(obj["id"])] = obj
+    for r in patch_rows:
+        by_id[str(r["id"])] = r
+
+    manifest_order = load_rows_from_sample_jsonl(manifest_paths)
+    manifest_ids = [str(r["id"]) for r in manifest_order]
+    manifest_id_set = set(manifest_ids)
+    ordered: list[dict[str, Any]] = []
+    missing_need_placeholder: list[str] = []
+    n_placeholder = 0
+    for mrow in manifest_order:
+        rid = str(mrow["id"])
+        row = by_id.get(rid)
+        if row is None:
+            missing_need_placeholder.append(rid)
+            if placeholders_for_missing:
+                ordered.append(stub_trace_row(mrow, "no_trace_row"))
+                n_placeholder += 1
+        else:
+            ordered.append(row)
+    stray_ids = sorted(by_id.keys() - manifest_id_set)
+    if stray_ids:
+        print(
+            f"warning: {len(stray_ids)} trace id(s) in merge file but not in manifest — dropped "
+            f"(first few: {stray_ids[:8]})",
+            file=sys.stderr,
+        )
+    return ordered, missing_need_placeholder, stray_ids, len(manifest_ids), n_placeholder
+
+
+def manifest_trace_summary(ordered: list[dict[str, Any]], *, manifest_size: int) -> dict[str, Any]:
+    """Aggregate correctness vs stubs for manifest-aligned trace JSONL."""
+    n_stub = sum(1 for r in ordered if r.get("_stub"))
+    n_corr = sum(trace_record_is_correct(r) for r in ordered)
+    n_wrong_given_completion = sum(
+        1 for r in ordered if not r.get("_stub") and not trace_record_is_correct(r)
+    )
+    n_written = len(ordered)
+    return {
+        "manifest_size": manifest_size,
+        "lines_written": n_written,
+        "stub_api_missing_rows": n_stub,
+        "real_completion_rows": n_written - n_stub,
+        "correct_vs_manifest": n_corr,
+        "wrong_answer_with_completion": n_wrong_given_completion,
+    }
+
+
 def collect_trace(
     client,
     prompt_data: dict,
@@ -292,6 +395,8 @@ def run(args: argparse.Namespace) -> None:
 
     merge_trace_file: Path | None = Path(args.merge_traces_into).expanduser() if args.merge_traces_into else None
     patch_traces = merge_trace_file is not None
+    trace_placeholders = not getattr(args, "no_manifest_trace_stubs", False)
+
     if merge_trace_file is not None:
         if not manifest_paths:
             print("error: --merge-traces-into requires manifest mode (--from-sample-jsonl).", file=sys.stderr)
@@ -461,32 +566,44 @@ def run(args: argparse.Namespace) -> None:
             print(f"  >> checkpoint: {len(all_results)} traces, {correct_so_far} correct{extra}")
 
     traces_written: Path | None = None
+    merge_manifest_summary: dict[str, Any] | None = None
     if merge_trace_file is not None:
-        merged_out: list[dict[str, Any]] = []
-        patch_by_id = {r["id"]: r for r in all_results}
-        orphan_patches = set(patch_by_id.keys())
-        for line in merge_trace_file.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            obj = json.loads(line)
-            rid = obj["id"]
-            orphan_patches.discard(rid)
-            if rid in patch_by_id:
-                merged_out.append(patch_by_id[rid])
-            else:
-                merged_out.append(obj)
-        if orphan_patches:
-            print(
-                f"warning: these ids were rerun but absent from merge file — appending (unexpected): "
-                f"{sorted(orphan_patches)}",
-                file=sys.stderr,
-            )
-            for oid in sorted(orphan_patches):
-                merged_out.append(patch_by_id[oid])
+        ordered, missing_manifest_ids, stray_ids, n_manifest, n_ph = merge_traces_aligned_to_manifest(
+            merge_trace_file,
+            manifest_paths,
+            all_results,
+            placeholders_for_missing=trace_placeholders,
+        )
         with merge_trace_file.open("w", encoding="utf-8") as f:
-            for row in merged_out:
+            for row in ordered:
                 f.write(json.dumps(row) + "\n")
         traces_written = merge_trace_file.resolve()
+        merge_manifest_summary = manifest_trace_summary(ordered, manifest_size=n_manifest) | {
+            "ids_without_completion_before_stub": missing_manifest_ids,
+            "stub_rows_written": n_ph,
+        }
+        msm = merge_manifest_summary
+        n_corr = msm["correct_vs_manifest"]
+        if trace_placeholders and missing_manifest_ids and n_ph != len(missing_manifest_ids):
+            print(
+                f"warning: placeholder count mismatch stubs={n_ph} missing_ids={len(missing_manifest_ids)}",
+                file=sys.stderr,
+            )
+        if missing_manifest_ids and not trace_placeholders:
+            print(
+                f"[merge manifest] {len(missing_manifest_ids)} manifest id(s) have no trace row (file shorter than manifest)",
+                file=sys.stderr,
+            )
+        pct = (n_corr / n_manifest * 100) if n_manifest else 0
+        n_real = msm["real_completion_rows"]
+        pct_real = (n_corr / n_real * 100) if n_real else 0
+        print(
+            f"[merge manifest] manifest={n_manifest}, lines_written={msm['lines_written']}, "
+            f"stub_api_missing={msm['stub_api_missing_rows']}, real_completions={n_real}, "
+            f"correct={n_corr}, wrong_given_completion={msm['wrong_answer_with_completion']} "
+            f"→ acc vs manifest={n_corr}/{n_manifest} ({pct:.1f}%); vs completions only={pct_real:.1f}%",
+            file=sys.stderr,
+        )
 
         errs_path = output_dir / "gsm_hard_errors.jsonl"
         err_map: dict[str, str] = {}
@@ -510,9 +627,37 @@ def run(args: argparse.Namespace) -> None:
                 errs_path.unlink()
             print(f"Cleared {errs_path} (no remaining errors from merge run)")
     else:
-        with open(traces_path, "w") as f:
-            for r in all_results:
-                f.write(json.dumps(r) + "\n")
+        if manifest_paths:
+            # Fresh manifest run: do not splice in a prior gsm_hard_traces.jsonl (avoids stale rows).
+            ordered, missing_manifest_ids, stray_ids, n_manifest, n_ph = merge_traces_aligned_to_manifest(
+                None,
+                manifest_paths,
+                all_results,
+                placeholders_for_missing=trace_placeholders,
+            )
+            with open(traces_path, "w", encoding="utf-8") as f:
+                for row in ordered:
+                    f.write(json.dumps(row) + "\n")
+            merge_manifest_summary = manifest_trace_summary(ordered, manifest_size=n_manifest) | {
+                "ids_without_completion_before_stub": missing_manifest_ids,
+                "stub_rows_written": n_ph,
+            }
+            msm = merge_manifest_summary
+            n_corr = msm["correct_vs_manifest"]
+            pct_full = n_corr / n_manifest * 100 if n_manifest else 0.0
+            n_real = msm["real_completion_rows"]
+            pct_real = (n_corr / n_real * 100) if n_real else 0.0
+            print(
+                f"[manifest order] manifest={n_manifest}, lines_written={msm['lines_written']}, "
+                f"stub_api_missing={msm['stub_api_missing_rows']}, correct={n_corr}, "
+                f"wrong_given_completion={msm['wrong_answer_with_completion']} "
+                f"→ acc vs manifest={n_corr}/{n_manifest} ({pct_full:.1f}%); vs completions only={pct_real:.1f}%",
+                file=sys.stderr,
+            )
+        else:
+            with open(traces_path, "w", encoding="utf-8") as f:
+                for r in all_results:
+                    f.write(json.dumps(r) + "\n")
         if all_errors:
             with open(output_dir / "gsm_hard_errors.jsonl", "w") as f:
                 for e in all_errors:
@@ -523,19 +668,31 @@ def run(args: argparse.Namespace) -> None:
 
     print()
     print("=" * 60)
-    if all_results:
+    if merge_manifest_summary is not None:
+        msm = merge_manifest_summary
+        nm = msm["manifest_size"]
+        pct_full = msm["correct_vs_manifest"] / nm * 100 if nm else 0.0
+        print(
+            f"Manifest-aligned totals: correct={msm['correct_vs_manifest']}/{nm} ({pct_full:.1f}% of full manifest); "
+            f"lines_written={msm['lines_written']}; stub_api_missing={msm['stub_api_missing_rows']}; "
+            f"wrong_answer_with_completion={msm['wrong_answer_with_completion']}."
+        )
+    elif all_results:
         correct_count = sum(1 for r in all_results if r["correct"])
         print(
-            f"Final: {len(all_results)} traces, {correct_count}/{len(all_results)} correct "
+            f"Final (this batch only): {len(all_results)} traces, {correct_count}/{len(all_results)} correct "
             f"({correct_count / len(all_results) * 100:.1f}%)"
         )
+    if all_results:
         import pandas as pd
+
         results_df = pd.DataFrame(all_results)
+        lbl = "Patch batch" if patch_traces else "Batch"
         print(
-            f"Output tokens: mean={results_df['output_tokens'].mean():.0f} "
+            f"{lbl} tokens: mean={results_df['output_tokens'].mean():.0f} "
             f"median={results_df['output_tokens'].median():.0f}"
         )
-    print(f"Errors: {len(all_errors)}")
+    print(f"Batch HTTP/API errors appended this run: {len(all_errors)}")
     print(f"Traces saved to: {traces_out_note}")
 
 
@@ -599,6 +756,14 @@ def parse_args() -> argparse.Namespace:
             "Merge rerun traces into this existing gsm_hard_traces.jsonl by id (keeps lineup for other ids). "
             "Skip rewriting gsm_hard_sample.jsonl, gsm_hard_prompts.jsonl, run_meta.json. "
             "Merges gsm_hard_errors.jsonl by removing reran successes and recording new failures."
+        ),
+    )
+    p.add_argument(
+        "--no-manifest-trace-stubs",
+        action="store_true",
+        help=(
+            "Manifest mode only: omit placeholder rows for ids with no trace; shorter JSONL "
+            "(line index then misaligns with manifest). Default: emit one stub row per missing id so len==manifest."
         ),
     )
     return p.parse_args()

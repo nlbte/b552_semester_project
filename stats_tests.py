@@ -2,8 +2,10 @@
 
 Usage:
     python stats_tests.py
+    python stats_tests.py --data-dir experiments/gemma4-31b-cloud
 """
 
+import argparse
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
@@ -16,7 +18,12 @@ try:
 except ImportError:
     pass
 
-df = pd.read_csv("gsm_hard_data/motif_scores.csv")
+ap = argparse.ArgumentParser()
+ap.add_argument("--data-dir", default="gsm_hard_data")
+args = ap.parse_args()
+data_dir = Path(args.data_dir)
+
+df = pd.read_csv(data_dir / "motif_scores.csv")
 
 # ── fisher's exact: motif_count >= 2 vs correctness ──────────────────────────
 high  = df[df["motif_count"] >= 2]
@@ -53,5 +60,5 @@ out = pd.DataFrame({
 
 print(f"\n── logistic regression (pseudo-R² = {result.prsquared:.3f}) ──")
 print(out.to_string(index=False))
-out.to_csv("gsm_hard_data/logistic_odds_ratios.csv", index=False)
-print("\nwrote gsm_hard_data/logistic_odds_ratios.csv")
+out.to_csv(data_dir / "logistic_odds_ratios.csv", index=False)
+print(f"\nwrote {data_dir}/logistic_odds_ratios.csv")

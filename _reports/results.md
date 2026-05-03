@@ -4,24 +4,23 @@
 ## 1. How to read this repo
 
 **Data lives in two directories:**
-- `gsm_hard_data/` contains everything for gpt-oss:120b. Raw traces, DAG graphs, CSVs of features and test results, and figures.
-- `experiments/gemma4-31b-cloud/` contains the same for gemma4:31b.
+- `results_gptoss/` contains everything for gpt-oss:120b. Raw traces, DAG graphs, CSVs of features and test results, and figures.
+- `results_gemma4/` contains the same for gemma4:31b.
 
-**Cross-model report files live in the repo root:** `targeted_motifs_report.md`, `additional_motifs_report.md`, `within_problem_report.md`.
+**Cross-model analysis results are in `results_technical.md` in the repo root.**
 
 **The analysis pipeline runs in this order:**
 
 | Script | What it does |
 |---|---|
 | `gsm_hard_ollama.py` | Samples problems from GSM-Hard and runs them through an Ollama Cloud model, saving raw thinking traces and answers |
-| `traces_to_graphs.py` | Asks an LLM to read each trace and convert it into a DAG: a list of reasoning steps with `op` labels and dependency edges |
+| `gsm_hard_claude.py` | Converts traces to DAGs using Claude Opus 4.6: a list of reasoning steps with `op` labels and dependency edges |
 | `motif_analysis.py` | Computes 14 structural features per graph (step count, depth, fact ratio, etc.) and runs Mann-Whitney U tests comparing correct vs. incorrect traces |
 | `extended_analysis.py` | Correlation matrix, standardized logistic regression, original 5 motif flags, out-degree breakdown by step type, error magnitude analysis |
 | `stats_tests.py` | Fisher's exact test and logistic regression with odds ratios for each feature |
 | `targeted_motifs.py` | Tests three hypothesis-driven binary flags: `late_arithmetic`, `verbose_ungrounded`, `early_branching` |
 | `additional_motifs.py` | Tests five more binary flags derived from visual graph inspection: `has_offschema_node`, `orphan_fact`, `linear_chain`, `high_fanin_conclude`, `failed_verification` |
 | `within_problem_comparison.py` | Paired analysis of the 14 problems where the two models disagreed, eliminating problem difficulty as a confound |
-| `targeted_motifs_report.py` / `additional_motifs_report.py` | Load per-model CSVs from the motif scripts and generate the cross-model markdown reports |
 | `visualize_results.py`, `visualize_graphs.py` | Generate all figures |
 
 ---
@@ -108,37 +107,34 @@ The sample is small (n=14) and the results should be treated as directional. See
 
 | File | Description |
 |---|---|
-| `gsm_hard_data/gsm_hard_traces.jsonl` | Raw gpt-oss outputs: thinking trace, predicted answer, correctness, token counts |
-| `gsm_hard_data/gsm_hard_graphs_all.jsonl` | DAG graphs for all 200 gpt-oss problems (steps with op labels and dependency edges) |
-| `gsm_hard_data/graph_features.csv` | 14 structural features per graph for gpt-oss |
-| `gsm_hard_data/feature_comparison.csv` | Mann-Whitney U results: correct vs. incorrect means, medians, p-values for gpt-oss |
-| `gsm_hard_data/logistic_regression.csv` | Standardized logistic regression coefficients for gpt-oss |
-| `gsm_hard_data/logistic_odds_ratios.csv` | Odds-ratio logistic regression for gpt-oss |
-| `gsm_hard_data/motif_scores.csv` | Five original binary motif flags plus composite count, per trace, for gpt-oss |
-| `gsm_hard_data/targeted_motifs_gptoss.csv` | Three targeted motif flags (`late_arithmetic`, `verbose_ungrounded`, `early_branching`) for gpt-oss |
-| `gsm_hard_data/additional_motifs_gptoss.csv` | Five additional motif flags (`has_offschema_node`, `orphan_fact`, `linear_chain`, `high_fanin_conclude`, `failed_verification`) for gpt-oss |
-| `gsm_hard_data/error_split.csv` | Per-trace gold answer, predicted answer, relative error, log10 error for gpt-oss |
-| `gsm_hard_data/outdegree_by_op.csv` | Node-level out-degree broken down by step type for gpt-oss |
-| `gsm_hard_data/graph_grids/ollama_correct_20.png` | Grid of 20 correct gpt-oss reasoning graphs |
-| `gsm_hard_data/graph_grids/ollama_incorrect_20.png` | Grid of 20 incorrect gpt-oss reasoning graphs |
-| `experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl` | Raw gemma4 outputs |
-| `experiments/gemma4-31b-cloud/gsm_hard_graphs.jsonl` | DAG graphs for all 200 gemma4 problems |
-| `experiments/gemma4-31b-cloud/graph_features.csv` | 14 structural features per graph for gemma4 |
-| `experiments/gemma4-31b-cloud/feature_comparison.csv` | Mann-Whitney U results for gemma4 |
-| `experiments/gemma4-31b-cloud/logistic_regression.csv` | Standardized logistic regression for gemma4 |
-| `experiments/gemma4-31b-cloud/logistic_odds_ratios.csv` | Odds-ratio regression for gemma4 |
-| `experiments/gemma4-31b-cloud/motif_scores.csv` | Original 5 motif flags for gemma4 |
-| `experiments/gemma4-31b-cloud/additional_motifs_gemma4.csv` | Five additional motif flags for gemma4 |
-| `experiments/gemma4-31b-cloud/error_split.csv` | Per-trace error data for gemma4 |
-| `experiments/gemma4-31b-cloud/correlation_matrix.png` | Spearman correlation heatmap for gemma4 features |
-| `experiments/gemma4-31b-cloud/feature_comparison.png` | Boxplots of correct vs. incorrect feature distributions for gemma4 |
-| `experiments/gemma4-31b-cloud/error_distribution.png` | Histogram of log10 relative error for gemma4 |
-| `experiments/gemma4-31b-cloud/case_studies.png` | DAG visualizations: 2 correct, 2 incorrect gemma4 traces |
-| `experiments/gemma4-31b-cloud/graph_grids/` | Grids of 20 correct and 20 incorrect gemma4 graphs |
-| `targeted_motifs_report.md` | Cross-model results for the three targeted motifs |
-| `additional_motifs_report.md` | Cross-model results for the five additional motifs |
-| `within_problem_report.md` | Within-problem paired analysis: 14 discordant pairs, Wilcoxon results, per-pair table |
-| `results_technical.md` | Full technical results report with all tables and raw numbers (preserved from earlier version) |
+| `results_gptoss/gsm_hard_traces.jsonl` | Raw gpt-oss outputs: thinking trace, predicted answer, correctness, token counts |
+| `results_gptoss/gsm_hard_graphs_all.jsonl` | DAG graphs for all 200 gpt-oss problems (steps with op labels and dependency edges) |
+| `results_gptoss/graph_features.csv` | 14 structural features per graph for gpt-oss |
+| `results_gptoss/feature_comparison.csv` | Mann-Whitney U results: correct vs. incorrect means, medians, p-values for gpt-oss |
+| `results_gptoss/logistic_regression.csv` | Standardized logistic regression coefficients for gpt-oss |
+| `results_gptoss/logistic_odds_ratios.csv` | Odds-ratio logistic regression for gpt-oss |
+| `results_gptoss/motif_scores.csv` | Five original binary motif flags plus composite count, per trace, for gpt-oss |
+| `results_gptoss/targeted_motifs_gptoss.csv` | Three targeted motif flags (`late_arithmetic`, `verbose_ungrounded`, `early_branching`) for gpt-oss |
+| `results_gptoss/additional_motifs_gptoss.csv` | Five additional motif flags (`has_offschema_node`, `orphan_fact`, `linear_chain`, `high_fanin_conclude`, `failed_verification`) for gpt-oss |
+| `results_gptoss/error_split.csv` | Per-trace gold answer, predicted answer, relative error, log10 error for gpt-oss |
+| `results_gptoss/outdegree_by_op.csv` | Node-level out-degree broken down by step type for gpt-oss |
+| `results_gptoss/graph_grids/gptoss_correct_20.png` | Grid of 20 correct gpt-oss reasoning graphs |
+| `results_gptoss/graph_grids/gptoss_incorrect_20.png` | Grid of 20 incorrect gpt-oss reasoning graphs |
+| `results_gemma4/gsm_hard_traces.jsonl` | Raw gemma4 outputs |
+| `results_gemma4/gsm_hard_graphs.jsonl` | DAG graphs for all 200 gemma4 problems |
+| `results_gemma4/graph_features.csv` | 14 structural features per graph for gemma4 |
+| `results_gemma4/feature_comparison.csv` | Mann-Whitney U results for gemma4 |
+| `results_gemma4/logistic_regression.csv` | Standardized logistic regression for gemma4 |
+| `results_gemma4/logistic_odds_ratios.csv` | Odds-ratio regression for gemma4 |
+| `results_gemma4/motif_scores.csv` | Original 5 motif flags for gemma4 |
+| `results_gemma4/additional_motifs_gemma4.csv` | Five additional motif flags for gemma4 |
+| `results_gemma4/error_split.csv` | Per-trace error data for gemma4 |
+| `results_gemma4/correlation_matrix.png` | Spearman correlation heatmap for gemma4 features |
+| `results_gemma4/feature_comparison.png` | Boxplots of correct vs. incorrect feature distributions for gemma4 |
+| `results_gemma4/error_distribution.png` | Histogram of log10 relative error for gemma4 |
+| `results_gemma4/case_studies.png` | DAG visualizations: 2 correct, 2 incorrect gemma4 traces |
+| `results_gemma4/graph_grids/` | Grids of 20 correct and 20 incorrect gemma4 graphs |
+| `results_technical.md` | Full technical results report with all tables and raw numbers |
 
 ---
 
@@ -146,73 +142,62 @@ The sample is small (n=14) and the results should be treated as directional. See
 
 ```bash
 # --- stage 1: collect traces ---
-# run gpt-oss on 200 GSM-Hard problems (creates gsm_hard_data/gsm_hard_traces.jsonl)
-python gsm_hard_ollama.py --model gpt-oss:120b-cloud --n 200 --out gsm_hard_data
+# run gpt-oss on 200 GSM-Hard problems (creates results_gptoss/gsm_hard_traces.jsonl)
+python gsm_hard_ollama.py --model gpt-oss:120b-cloud --n 200 --out results_gptoss
 
 # run gemma4 on the same 200 problems (--manifest reuses the same problem set)
-python gsm_hard_ollama.py --model gemma4:31b-cloud --n 200 --manifest gsm_hard_data/manifest.json --out experiments/gemma4-31b-cloud
+python gsm_hard_ollama.py --model gemma4:31b-cloud --n 200 --manifest results_gptoss/manifest.json --out results_gemma4
 
-# --- stage 2: extract graphs ---
-# convert traces to DAGs (creates gsm_hard_graphs_all.jsonl)
-python traces_to_graphs.py --traces gsm_hard_data/gsm_hard_traces.jsonl --out gsm_hard_data/gsm_hard_graphs_all.jsonl
+# --- stage 2: extract graphs (uses Claude Opus 4.6 via Anthropic API) ---
+python gsm_hard_claude.py --traces results_gptoss/gsm_hard_traces.jsonl --out results_gptoss/gsm_hard_graphs_all.jsonl
 
-python traces_to_graphs.py --traces experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl --out experiments/gemma4-31b-cloud/gsm_hard_graphs.jsonl
+python gsm_hard_claude.py --traces results_gemma4/gsm_hard_traces.jsonl --out results_gemma4/gsm_hard_graphs.jsonl
 
 # --- stage 3: feature analysis ---
-python motif_analysis.py --graphs gsm_hard_data/gsm_hard_graphs_all.jsonl --traces gsm_hard_data/gsm_hard_traces.jsonl --out gsm_hard_data
+python motif_analysis.py --graphs results_gptoss/gsm_hard_graphs_all.jsonl --traces results_gptoss/gsm_hard_traces.jsonl --out results_gptoss
 
-python motif_analysis.py --graphs experiments/gemma4-31b-cloud/gsm_hard_graphs.jsonl --traces experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl --out experiments/gemma4-31b-cloud
+python motif_analysis.py --graphs results_gemma4/gsm_hard_graphs.jsonl --traces results_gemma4/gsm_hard_traces.jsonl --out results_gemma4
 
-python extended_analysis.py --graphs gsm_hard_data/gsm_hard_graphs_all.jsonl --traces gsm_hard_data/gsm_hard_traces.jsonl --out gsm_hard_data
+python extended_analysis.py --graphs results_gptoss/gsm_hard_graphs_all.jsonl --traces results_gptoss/gsm_hard_traces.jsonl --out results_gptoss
 
-python extended_analysis.py --graphs experiments/gemma4-31b-cloud/gsm_hard_graphs.jsonl --traces experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl --out experiments/gemma4-31b-cloud
+python extended_analysis.py --graphs results_gemma4/gsm_hard_graphs.jsonl --traces results_gemma4/gsm_hard_traces.jsonl --out results_gemma4
 
-python stats_tests.py --graphs gsm_hard_data/gsm_hard_graphs_all.jsonl --traces gsm_hard_data/gsm_hard_traces.jsonl --out gsm_hard_data
+python stats_tests.py --graphs results_gptoss/gsm_hard_graphs_all.jsonl --traces results_gptoss/gsm_hard_traces.jsonl --out results_gptoss
 
-python stats_tests.py --graphs experiments/gemma4-31b-cloud/gsm_hard_graphs.jsonl --traces experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl --out experiments/gemma4-31b-cloud
+python stats_tests.py --graphs results_gemma4/gsm_hard_graphs.jsonl --traces results_gemma4/gsm_hard_traces.jsonl --out results_gemma4
 
 # --- stage 4: motif analyses ---
 python targeted_motifs.py \
-    --graphs gsm_hard_data/gsm_hard_graphs_all.jsonl \
-    --traces gsm_hard_data/gsm_hard_traces.jsonl \
-    --label gpt-oss --out-csv gsm_hard_data/targeted_motifs_gptoss.csv
+    --graphs results_gptoss/gsm_hard_graphs_all.jsonl \
+    --traces results_gptoss/gsm_hard_traces.jsonl \
+    --label gpt-oss --out-csv results_gptoss/targeted_motifs_gptoss.csv
 
 python targeted_motifs.py \
-    --graphs experiments/gemma4-31b-cloud/gsm_hard_graphs.jsonl \
-    --traces experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl \
-    --label gemma4 --out-csv experiments/gemma4-31b-cloud/targeted_motifs_gemma4.csv
-
-python targeted_motifs_report.py \
-    --gptoss gsm_hard_data/targeted_motifs_gptoss.csv \
-    --gemma4 experiments/gemma4-31b-cloud/targeted_motifs_gemma4.csv \
-    --out targeted_motifs_report.md
+    --graphs results_gemma4/gsm_hard_graphs.jsonl \
+    --traces results_gemma4/gsm_hard_traces.jsonl \
+    --label gemma4 --out-csv results_gemma4/targeted_motifs_gemma4.csv
 
 python additional_motifs.py \
-    --graphs gsm_hard_data/gsm_hard_graphs_all.jsonl \
-    --traces gsm_hard_data/gsm_hard_traces.jsonl \
-    --label gpt-oss --out-csv gsm_hard_data/additional_motifs_gptoss.csv
+    --graphs results_gptoss/gsm_hard_graphs_all.jsonl \
+    --traces results_gptoss/gsm_hard_traces.jsonl \
+    --label gpt-oss --out-csv results_gptoss/additional_motifs_gptoss.csv
 
 python additional_motifs.py \
-    --graphs experiments/gemma4-31b-cloud/gsm_hard_graphs.jsonl \
-    --traces experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl \
-    --label gemma4 --out-csv experiments/gemma4-31b-cloud/additional_motifs_gemma4.csv
-
-python additional_motifs_report.py \
-    --gptoss gsm_hard_data/additional_motifs_gptoss.csv \
-    --gemma4 experiments/gemma4-31b-cloud/additional_motifs_gemma4.csv \
-    --out additional_motifs_report.md
+    --graphs results_gemma4/gsm_hard_graphs.jsonl \
+    --traces results_gemma4/gsm_hard_traces.jsonl \
+    --label gemma4 --out-csv results_gemma4/additional_motifs_gemma4.csv
 
 # --- stage 5: within-problem comparison ---
 python within_problem_comparison.py \
-    --gptoss gsm_hard_data/graph_features.csv \
-    --gemma4 experiments/gemma4-31b-cloud/graph_features.csv \
+    --gptoss results_gptoss/graph_features.csv \
+    --gemma4 results_gemma4/graph_features.csv \
     --out within_problem_report.md
 
 # --- stage 6: figures ---
-python visualize_results.py --traces gsm_hard_data/gsm_hard_traces.jsonl --out gsm_hard_data
-python visualize_graphs.py --graphs gsm_hard_data/gsm_hard_graphs_all.jsonl --traces gsm_hard_data/gsm_hard_traces.jsonl --out gsm_hard_data/graph_grids
+python visualize_results.py --traces results_gptoss/gsm_hard_traces.jsonl --out results_gptoss
+python visualize_graphs.py --graphs results_gptoss/gsm_hard_graphs_all.jsonl --traces results_gptoss/gsm_hard_traces.jsonl --out results_gptoss/graph_grids
 
-python visualize_graphs.py --graphs experiments/gemma4-31b-cloud/gsm_hard_graphs.jsonl --traces experiments/gemma4-31b-cloud/gsm_hard_traces.jsonl --out experiments/gemma4-31b-cloud/graph_grids
+python visualize_graphs.py --graphs results_gemma4/gsm_hard_graphs.jsonl --traces results_gemma4/gsm_hard_traces.jsonl --out results_gemma4/graph_grids
 ```
 
 ---

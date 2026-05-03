@@ -5,8 +5,8 @@
 
 | Model | API | Output dir |
 |---|---|---|
-| `gpt-oss:120b-cloud` | Ollama Cloud | `gsm_hard_data/` |
-| `gemma4:31b-cloud` | Ollama Cloud | `experiments/gemma4-31b-cloud/` |
+| `gpt-oss:120b-cloud` | Ollama Cloud | `results_gptoss/` |
+| `gemma4:31b-cloud` | Ollama Cloud | `results_gemma4/` |
 
 Both models ran on the **same 200 problems** (manifest mode, temperature=0, greedy decoding). Graphs were extracted by asking an LLM to segment each trace into steps with `op` labels (`extract_fact`, `arithmetic`, `substitute`, `conclude`, `verify`, `other`) and `depends_on` edges.
 
@@ -21,8 +21,7 @@ HuggingFace gsm-hard
 gsm_hard_ollama.py          sample problems, run through Ollama Cloud, save raw traces
         |
         v
-traces_to_graphs.py         ask LLM to convert each trace into a DAG (JSON steps + edges)
- (or gsm_hard_claude.py)    -- claude-opus-4-6 variant for graph extraction
+gsm_hard_claude.py          ask Claude Opus 4.6 to convert each trace into a DAG (JSON steps + edges)
         |
         v
 motif_analysis.py           extract 14 graph features, run Mann-Whitney U tests
@@ -404,7 +403,7 @@ In 14 discordant pairs where one model was right and the other wrong on the same
 
 ## Data Artifacts
 
-### `gsm_hard_data/` — gpt-oss:120b-cloud run
+### `results_gptoss/` — gpt-oss:120b-cloud run
 
 | File | Description |
 |---|---|
@@ -420,10 +419,10 @@ In 14 discordant pairs where one model was right and the other wrong on the same
 | `targeted_motifs_gptoss.csv` | Three targeted motif flags per trace |
 | `additional_motifs_gptoss.csv` | Five additional motif flags per trace |
 | `summary.png` | Accuracy/token summary figure |
-| `graph_grids/ollama_correct_20.png` | Grid of 20 correct reasoning graphs |
-| `graph_grids/ollama_incorrect_20.png` | Grid of 20 incorrect reasoning graphs |
+| `graph_grids/gptoss_correct_20.png` | Grid of 20 correct reasoning graphs |
+| `graph_grids/gptoss_incorrect_20.png` | Grid of 20 incorrect reasoning graphs |
 
-### `experiments/gemma4-31b-cloud/` — gemma4:31b-cloud run
+### `results_gemma4/` — gemma4:31b-cloud run
 
 | File | Description |
 |---|---|
@@ -455,19 +454,15 @@ In 14 discordant pairs where one model was right and the other wrong on the same
 | Script | Purpose |
 |---|---|
 | `gsm_hard_ollama.py` | Sample from GSM-Hard, run through Ollama Cloud, save traces with checkpoint/resume and patch-mode retry |
-| `gsm_hard_claude.py` | Same as above but uses Claude API (`claude-opus-4-6`) for graph extraction with extended thinking |
-| `traces_to_graphs.py` | Convert raw traces → DAGs via LLM (Ollama Cloud) with step segmentation prompt |
+| `gsm_hard_claude.py` | Convert raw traces → DAGs using Claude Opus 4.6 API; same input/output format, used for all graph extraction in this project |
 | `motif_analysis.py` | Extract 14 graph features, Mann-Whitney U comparison, feature boxplot |
 | `extended_analysis.py` | Correlation matrix, logistic regression, motif scoring, out-degree by op, error split, case study figures |
 | `stats_tests.py` | Fisher's exact + logistic regression with odds ratios |
 | `targeted_motifs.py` | Three hypothesis-driven motif flags: `late_arithmetic`, `verbose_ungrounded`, `early_branching` |
 | `additional_motifs.py` | Five additional motif flags: `has_offschema_node`, `orphan_fact`, `linear_chain`, `high_fanin_conclude`, `failed_verification` |
-| `targeted_motifs_report.py` | Load per-model targeted motif CSVs and generate cross-model markdown report |
-| `additional_motifs_report.py` | Load per-model additional motif CSVs and generate cross-model markdown report |
 | `within_problem_comparison.py` | Paired analysis of discordant problems; Wilcoxon signed-rank test on all 10 features |
 | `visualize_results.py` | Summary plots: accuracy by model, token distributions, relative error histogram |
 | `visualize_graphs.py` | 5-column grid visualizations of 20 correct + 20 incorrect graphs per model |
-| `pretty_jsonl.py` | JSONL → indented JSON array for readability |
 
 ---
 

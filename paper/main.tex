@@ -1,0 +1,196 @@
+% main.tex -- AAAI-25 compliant skeleton
+% Compile from this directory:
+%   pdflatex main && bibtex main && pdflatex main && pdflatex main
+% Citations stay ``undefined'' until bibtex runs (needs aaai25.bib).
+
+\documentclass[letterpaper]{article}
+\usepackage{aaai25}  % DO NOT change this or add options [AAAI-25]
+\usepackage{natbib}
+\usepackage{times}   % Required: Times/Nimbus text font [AAAI-25]
+\usepackage{helvet}  % Helvetica for sans serif [AAAI-25]
+\usepackage{courier} % Courier for monospace [AAAI-25]
+\usepackage[utf8]{inputenc} % Standard UTF-8 input
+\usepackage{graphicx}       % For figures (.pdf/.png/.jpg only)
+\usepackage{amsmath,amssymb} % Math support (allowed) [AAAI-25]
+
+% IMPORTANT RESTRICTIONS (from AAAI instructions) [file:10][file:11]
+% - Do NOT change margins, column widths, or line spacing.
+% - Do NOT add packages that alter layout, floats, fonts, or links.
+% - Do NOT use hyperref, geometry, fullpage, titlesec, navigator, etc.
+% - Do NOT insert manual page breaks in the camera-ready version.
+% - Do NOT use \input to split the source into multiple .tex files.
+
+% Section numbering: 0 = no numbers, 1 = sections, 2 = sections+subsections.
+% For AAAI, section numbers are optional.
+\setcounter{secnumdepth}{0}
+
+% ------------------------------------------------------------------
+% Title and Authors
+% ------------------------------------------------------------------
+% Use Chicago Title Case: capitalize verbs, nouns, adjectives, pronouns,
+% and both parts of hyphenated words; articles/conjunctions/prepositions
+% are lower case unless they follow a colon or long dash. [file:10][file:11]
+
+\title{Reasoning Graphs for\\Interpretable Chain-of-Thought Analysis}
+
+% Multiple authors, shared affiliation (\textsuperscript{\rm 1}).
+\author{
+    Neel Bhate\textsuperscript{\rm 1},
+    Owen Kleinmaier\textsuperscript{\rm 1},
+    Logan Reddell\textsuperscript{\rm 1}\\
+    \textsuperscript{\rm 1}Luddy School of Informatics, Computing, and Engineering, Indiana University Bloomington, Bloomington, Indiana, USA\\
+    nbhate@iu.edu, owklein@iu.edu, lreddell@iu.edu
+}
+
+% If you need multiple affiliations, use superscripts as in the AAAI instructions:
+% \author{
+%   Author One\textsuperscript{\rm 1,2},
+%   Author Two\textsuperscript{\rm 2},
+%   Author Three\textsuperscript{\rm 3}\\
+%   \textsuperscript{\rm 1}Affiliation One, City, Country\\
+%   \textsuperscript{\rm 2}Affiliation Two, City, Country\\
+%   \textsuperscript{\rm 3}Affiliation Three, City, Country\\
+%   one@aff1, two@aff2, three@aff3
+% }
+
+\begin{document}
+\maketitle
+
+% ------------------------------------------------------------------
+% Abstract
+% ------------------------------------------------------------------
+% ≤ 200 words, no references/citations, auto-indented by the style. [file:10][file:11]
+
+\begin{abstract}
+We present a template for preparing AAAI-25 conference papers in \LaTeX{} using the official \texttt{aaai25.sty} style file and bibliography style. This skeleton is designed to minimize external dependencies while satisfying all requirements on fonts, margins, and layout. Authors should replace this text with an abstract of at most two hundred words that clearly states the problem, approach, and key results, without including any citations or references.
+\end{abstract}
+
+% ------------------------------------------------------------------
+% Optional links (code / data / extended version)
+% ------------------------------------------------------------------
+% You may omit this environment entirely if you do not want to expose links yet. [file:10]
+%
+% \begin{links}
+% Codehttps://example.com/code
+% Datasetshttps://example.com/datasets
+% Extended versionhttps://example.com/extended
+% \end{links}
+
+% ------------------------------------------------------------------
+% Main Content
+% ------------------------------------------------------------------
+
+\section{Introduction}
+
+This section introduces the problem, motivation, and high-level contributions of this work. 
+The main body text must be in black, ten-point Times with twelve-point leading, and you must not change line spacing or font size. [file:10][file:11]
+The introduction may include paragraphs and citations such as \cite{vaswani2017attention}. 
+
+\section{Related Work}
+
+Summarize prior work that is most relevant to the proposed approach. 
+Use author--year citations as required by AAAI, for example, narrative uses like ``\citeauthor{vaswani2017attention} \shortcite{vaswani2017attention} introduce the Transformer architecture'' or parenthetical citations such as \cite{vaswani2017attention}. [file:10][file:11]
+Avoid adding packages that modify citation formatting beyond \texttt{natbib}, which the official style expects; \texttt{aaai25.sty} sets \texttt{aaai25.bst} when \texttt{natbib} is loaded.
+
+\section{Method}
+
+Describe the model, algorithm, or theoretical framework in detail. 
+You may use standard math environments from \texttt{amsmath}, for example,
+\begin{equation}
+    \mathcal{L}(\theta) = \mathbb{E}_{x \sim \mathcal{D}} \Big[ \ell\big(f_\theta(x), y\big) \Big],
+\end{equation}
+as long as equations remain within the column width and do not overflow into the margins. [file:10][file:11]
+If equations are too wide, consider breaking them across lines or using inline notation.
+
+\subsection{Model Architecture}
+
+Explain the components of the model and how they interact. 
+When using figures to visualize the architecture, import pre-cropped \texttt{.pdf}, \texttt{.png}, or \texttt{.jpg} files using \texttt{graphicx}, without \emph{clip} or \emph{trim} options. [file:10][file:11]
+
+\subsection{Training Procedure}
+
+Detail optimization, hyperparameters, and training data. 
+If you need pseudocode, consider using the algorithm environments recommended in the instructions or a simple figure-like environment, keeping the caption formatting consistent with other figures. [file:10][file:11]
+
+\section{Experiments}
+
+In this section, describe datasets, baselines, metrics, and experimental protocols. 
+Tables should be typeset using standard \texttt{table} and \texttt{tabular} environments, with captions appearing below the table in ten-point roman type. [file:10][file:11]
+Avoid resizing tables with commands that globally scale fonts; instead, adjust content (for example, fewer decimal places or shorter labels).
+
+\subsection{Datasets}
+
+Describe the datasets, including relevant statistics such as number of examples, features, and labels. 
+If you need to include dataset licenses or sources, reference them in the text or footnotes, and provide full citations in the references section. [file:11]
+
+\subsection{Baselines and Metrics}
+
+List the baselines and evaluation metrics used to compare methods. 
+Be explicit about implementation details and hyperparameters when they materially affect results, and cite any external codebases or toolkits appropriately. [file:11]
+
+\subsection{Results}
+
+Present quantitative and qualitative results. 
+For figures, place them near the first reference in the text, ensure they do not intrude into margins, and keep labels at least nine-point type inside the image. [file:10][file:11]
+Discuss trends and ablations clearly, referencing tables and figures using labels such as Figure~\ref{fig:overview} or Table~\ref{tab:results}.
+
+% Example figure placeholder (you can delete this block if not needed yet)
+% Uncomment \includegraphics when figure1.pdf (or .png/.jpg) exists in this folder.
+\begin{figure}[t]
+    \centering
+    \setlength{\fboxsep}{6pt}
+    \fbox{\begin{minipage}{0.82\columnwidth}\centering\small
+    Placeholder figure. Add \texttt{figure1.pdf} (or \texttt{.png}/\texttt{.jpg}), delete this box, and use
+    \texttt{\textbackslash includegraphics[width=0.9\textbackslash columnwidth]\{figure1\}}.
+    \end{minipage}}
+    \caption{Example figure caption illustrating how to format images in AAAI style.}
+    \label{fig:overview}
+\end{figure}
+
+% Example table placeholder (delete or replace as needed)
+\begin{table}[t]
+    \centering
+    \begin{tabular}{lcc}
+        \hline
+        Method & Metric A & Metric B \\
+        \hline
+        Baseline 1 & 0.75 & 0.62 \\
+        Baseline 2 & 0.79 & 0.65 \\
+        Our Method & \textbf{0.83} & \textbf{0.71} \\
+        \hline
+    \end{tabular}
+    \caption{Example table showing how to format tabular results.}
+    \label{tab:results}
+\end{table}
+
+\section{Conclusion}
+
+Summarize the main contributions and findings, and discuss limitations and future work. 
+Keep this section concise, focusing on what the reader should remember after reading the paper and how the work might be extended. [file:11]
+
+% ------------------------------------------------------------------
+% Optional Unnumbered Sections
+% ------------------------------------------------------------------
+
+% Ethical statement is optional but encouraged in many venues. [file:10][file:11]
+\section*{Ethical Statement}
+
+If applicable, discuss potential ethical and societal implications of this work, including both positive and negative impacts. 
+Mention any foreseeable misuse, biases in datasets or models, and mitigation strategies considered during development. [file:11]
+
+% Acknowledgments: unnumbered, just before references. [file:10][file:11]
+\section*{Acknowledgments}
+
+We thank our colleagues and collaborators for helpful discussions and feedback. 
+This work was supported in part by example funding sources, whose support we gratefully acknowledge.
+
+% ------------------------------------------------------------------
+% References
+% ------------------------------------------------------------------
+% Use BibTeX with aaai25.bst. The style is already set by aaai25.sty, so
+% you only need \bibliography{...}. [file:10][file:11]
+% Replace 'aaai25' with the actual .bib filename, e.g., 'references'.
+
+\bibliography{aaai25}
+
+\end{document}

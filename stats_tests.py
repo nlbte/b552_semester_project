@@ -25,7 +25,7 @@ data_dir = Path(args.data_dir)
 
 df = pd.read_csv(data_dir / "motif_scores.csv")
 
-# ── fisher's exact: motif_count >= 2 vs correctness ──────────────────────────
+# fisher's exact: motif_count >= 2 vs correctness
 high  = df[df["motif_count"] >= 2]
 low   = df[df["motif_count"] <  2]
 table = [
@@ -37,7 +37,7 @@ print("── fisher's exact: motif_count ≥ 2 predicts incorrectness ──")
 print(f"  contingency table:  {table}")
 print(f"  odds ratio: {odds_ratio:.2f}   p = {p_fisher:.4f}")
 
-# ── logistic regression with odds ratios ─────────────────────────────────────
+# logistic regression with odds ratios
 features = ["depth", "frac_facts", "orphan_nodes", "max_out_degree",
             "unsupported_arithmetic", "unsupported_conclude"]
 

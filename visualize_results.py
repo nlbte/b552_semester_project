@@ -8,8 +8,8 @@ Loads one or more traces.jsonl files, groups by model, and renders:
     5. A few example wrong answers printed to the console
 
 Usage:
-    python visualize_results.py                              # auto-discover *traces*.jsonl in gsm_hard_data
-    python visualize_results.py --traces path/to/file.jsonl  # point at specific files
+    python visualize_results.py                             
+    python visualize_results.py --traces path/to/file.jsonl
     python visualize_results.py --output-dir gsm_hard_data --out summary.png
 """
 

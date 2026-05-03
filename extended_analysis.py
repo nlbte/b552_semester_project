@@ -35,7 +35,7 @@ import statsmodels.api as sm
 warnings.filterwarnings("ignore")
 
 
-# ── constants ────────────────────────────────────────────────────────────────
+# constants
 
 OP_COLORS = {
     "extract_fact": "#4e9af1",
@@ -63,7 +63,7 @@ FEATURE_COLS = [
 ]
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# helpers
 
 def load_graphs(path: str) -> list[dict]:
     graphs = []
@@ -95,16 +95,8 @@ def parse_number(s) -> float | None:
         return None
 
 
-def section(title: str) -> None:
-    print(f"\n{'=' * 60}")
-    print(f"  {title}")
-    print('=' * 60)
-
-
-# ── 1. feature correlation ────────────────────────────────────────────────────
-
 def analyze_correlation(df: pd.DataFrame, out_dir: Path) -> None:
-    section("1. feature correlation (checking redundancy)")
+    print("\n1. feature correlation (checking redundancy)")
     cols = [c for c in FEATURE_COLS if df[c].std() > 0]
     corr = df[cols].corr(method="spearman")
 
@@ -142,10 +134,8 @@ def analyze_correlation(df: pd.DataFrame, out_dir: Path) -> None:
     print(f"\nwrote correlation_matrix.png")
 
 
-# ── 2. logistic regression ────────────────────────────────────────────────────
-
 def logistic_regression(df: pd.DataFrame, out_dir: Path) -> None:
-    section("2. multivariate logistic regression")
+    print("\n2. multivariate logistic regression")
 
     # drop zero-variance and highly correlated features
     # keep depth (drop n_steps), keep mean_out_degree (drop mean_in_degree — identical)
@@ -177,10 +167,8 @@ def logistic_regression(df: pd.DataFrame, out_dir: Path) -> None:
         print(f"logistic regression failed: {e}")
 
 
-# ── 3. motif score ────────────────────────────────────────────────────────────
-
 def motif_score_analysis(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
-    section("3. composite motif score")
+    print("\n3. composite motif score")
 
     for flag, fn in MOTIF_FLAGS.items():
         df[flag] = df.apply(fn, axis=1).astype(int)
@@ -229,10 +217,8 @@ def motif_score_analysis(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
     return df
 
 
-# ── 4. out-degree by op type ──────────────────────────────────────────────────
-
 def outdegree_by_op(graphs: list[dict], out_dir: Path) -> None:
-    section("4. out-degree breakdown by node op type")
+    print("\n4. out-degree breakdown by node op type")
 
     rows = []
     for g_data in graphs:
@@ -280,10 +266,9 @@ def outdegree_by_op(graphs: list[dict], out_dir: Path) -> None:
     print("wrote outdegree_by_op.png")
 
 
-# ── 5. error magnitude split ──────────────────────────────────────────────────
 
 def error_split(graphs: list[dict], out_dir: Path) -> None:
-    section("5. error magnitude split within incorrect traces")
+    print("\n5. error magnitude split within incorrect traces")
 
     rows = []
     for g in graphs:
@@ -354,7 +339,6 @@ def error_split(graphs: list[dict], out_dir: Path) -> None:
     return err_df
 
 
-# ── 6. case study figures ─────────────────────────────────────────────────────
 
 def draw_graph(g_data: dict, ax, title: str) -> None:
     steps = g_data.get("steps", [])
@@ -383,7 +367,7 @@ def draw_graph(g_data: dict, ax, title: str) -> None:
 
 
 def case_studies(graphs: list[dict], df: pd.DataFrame, out_dir: Path) -> None:
-    section("6. case study graph figures")
+    print("\n6. case study graph figures")
 
     df_idx = df.set_index("question_id")
     g_by_id = {g.get("question_id"): g for g in graphs}
@@ -445,7 +429,6 @@ def case_studies(graphs: list[dict], df: pd.DataFrame, out_dir: Path) -> None:
     print("wrote case_studies.png")
 
 
-# ── main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,

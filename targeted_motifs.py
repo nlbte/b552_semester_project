@@ -138,12 +138,6 @@ def extract_row(graph_rec):
     }
 
 
-def section(title):
-    print(f"\n{'=' * 60}")
-    print(f"  {title}")
-    print("=" * 60)
-
-
 def _fmt_p(p):
     if math.isnan(p):
         return "—"
@@ -229,7 +223,7 @@ def combined_logit(df, features, label):
 
 
 def run_stats(df, label):
-    section(f"per-motif statistics — {label}")
+    print(f"\nper-motif statistics — {label}")
     summary_rows = []
     for flag in MOTIF_FLAGS:
         n_present = int(df[flag].sum())
@@ -260,50 +254,13 @@ def run_stats(df, label):
             "logit_p":      uni_p,
         })
 
-    section(f"combined regression: 3 new motifs — {label}")
+    print(f"\ncombined regression: 3 new motifs — {label}")
     combined_3 = combined_logit(df, MOTIF_FLAGS, "3-motif model")
 
-    section(f"combined regression: 3 new motifs + depth + frac_facts — {label}")
+    print(f"\ncombined regression: 3 new motifs + depth + frac_facts — {label}")
     combined_5 = combined_logit(df, MOTIF_FLAGS + ["depth", "frac_facts"], "5-predictor model")
 
     return pd.DataFrame(summary_rows), combined_3, combined_5
-
-
-def generate_single_report(label, summary_df, combined_3, combined_5, out_path):
-    def fmt_or(v):
-        return "—" if math.isnan(v) else f"{v:.3f}"
-
-    lines = [f"# Targeted Motifs — {label}\n"]
-
-    lines.append("## Per-Motif Results\n")
-    lines.append("| motif | n_present | n_correct | n_incorrect | fisher OR | fisher p | logit OR | 95% CI | logit p |")
-    lines.append("|---|---|---|---|---|---|---|---|---|")
-    for _, r in summary_df.iterrows():
-        ci = f"[{r['logit_ci_lo']:.3f}, {r['logit_ci_hi']:.3f}]" if not math.isnan(r["logit_ci_lo"]) else "—"
-        lines.append(
-            f"| `{r['motif']}` | {r['n_present']} | {r['n_correct']} | {r['n_incorrect']}"
-            f" | {fmt_or(r['fisher_or'])} | {_fmt_p(r['fisher_p'])}"
-            f" | {fmt_or(r['logit_or'])} | {ci} | {_fmt_p(r['logit_p'])} |"
-        )
-    lines.append("")
-
-    for reg_df, title in [(combined_3, "Combined Regression: 3 New Motifs"),
-                          (combined_5, "Combined Regression: 3 New Motifs + depth + frac_facts")]:
-        if reg_df is None:
-            continue
-        lines.append(f"## {title}\n")
-        lines.append("| feature | coef | OR | 95% CI | p-value | sig |")
-        lines.append("|---|---|---|---|---|---|")
-        for _, r in reg_df.iterrows():
-            ci = f"[{r['ci_lo']:.3f}, {r['ci_hi']:.3f}]" if not math.isnan(r["ci_lo"]) else "—"
-            lines.append(
-                f"| `{r['feature']}` | {r['coef']:.3f} | {fmt_or(r['OR'])}"
-                f" | {ci} | {_fmt_p(r['p_value'])} | {r['sig']} |"
-            )
-        lines.append("")
-
-    Path(out_path).write_text("\n".join(lines), encoding="utf-8")
-    print(f"\nwrote single-model report to {out_path}")
 
 
 def main():
@@ -312,7 +269,6 @@ def main():
     p.add_argument("--traces",   required=True, help="path to gsm_hard_traces.jsonl")
     p.add_argument("--out-csv",  required=True, help="output per-trace CSV")
     p.add_argument("--label",    default="model", help="model label for display")
-    p.add_argument("--report",   default="", help="write per-model markdown report to this path")
     args = p.parse_args()
 
     graphs = load_jsonl(args.graphs)
@@ -340,10 +296,7 @@ def main():
         pct = df[flag].mean() * 100
         print(f"  {flag}: {int(df[flag].sum())} present ({pct:.1f}%)")
 
-    summary_df, combined_3, combined_5 = run_stats(df, args.label)
-
-    if args.report:
-        generate_single_report(args.label, summary_df, combined_3, combined_5, args.report)
+    run_stats(df, args.label)
 
 
 if __name__ == "__main__":

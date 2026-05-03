@@ -16,6 +16,7 @@ FACT_OPS = {"extract_fact", "given", "recall"}
 CONCLUDE_OPS = {"conclude", "conclusion", "final_answer"}
 
 
+# build a directed graph from a list of steps with depends_on edges
 def build_graph(steps):
     g = nx.DiGraph()
     for step in steps:
@@ -31,6 +32,7 @@ def build_graph(steps):
     return g
 
 
+# returns the longest dependency chain length (depth) in the dag
 def longest_path_length(g):
     if len(g) == 0:
         return 0
@@ -42,6 +44,7 @@ def longest_path_length(g):
         return -1
 
 
+# compute all 14 structural features for a single graph trace
 def extract_features(trace):
     steps = trace.get("steps", [])
     g = build_graph(steps)
@@ -108,6 +111,7 @@ def extract_features(trace):
     }
 
 
+# load traces from either a jsonl file or a json array
 def load_traces(path):
     traces = []
     p = Path(path)
@@ -123,6 +127,7 @@ def load_traces(path):
     return traces
 
 
+# run mann-whitney u test on each feature comparing correct vs incorrect traces
 def compare_groups(df, feature_cols):
     rows = []
     correct = df[df["is_correct"]]
@@ -161,6 +166,7 @@ def compare_groups(df, feature_cols):
     return pd.DataFrame(rows).sort_values("p_value", na_position="last")
 
 
+# save a grid of boxplots showing each feature split by correctness
 def plot_comparison(df, feature_cols, out_path):
     cols_to_plot = [c for c in feature_cols if df[c].nunique() > 1]
     n = len(cols_to_plot)
@@ -190,6 +196,7 @@ def plot_comparison(df, feature_cols, out_path):
     plt.close(fig)
 
 
+# load graphs, extract features, run stats, save csvs and plot
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(

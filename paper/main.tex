@@ -4,7 +4,8 @@
 % Citations stay ``undefined'' until bibtex runs (needs aaai25.bib).
 
 \documentclass[letterpaper]{article}
-\usepackage{aaai25}  % DO NOT change this or add options [AAAI-25]
+\usepackage{aaai25}  % AAAI style (authors visible)
+\nocopyright % hide footer while keeping names
 \usepackage{natbib}
 \usepackage{times}   % Required: Times/Nimbus text font [AAAI-25]
 \usepackage{helvet}  % Helvetica for sans serif [AAAI-25]
@@ -12,6 +13,7 @@
 \usepackage[utf8]{inputenc} % Standard UTF-8 input
 \usepackage{graphicx}       % For figures (.pdf/.png/.jpg only)
 \usepackage{amsmath,amssymb} % Math support (allowed) [AAAI-25]
+\usepackage[colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue]{hyperref}
 
 % IMPORTANT RESTRICTIONS (from AAAI instructions) [file:10][file:11]
 % - Do NOT change margins, column widths, or line spacing.
@@ -42,17 +44,6 @@
     nbhate@iu.edu, owklein@iu.edu, lreddell@iu.edu
 }
 
-% If you need multiple affiliations, use superscripts as in the AAAI instructions:
-% \author{
-%   Author One\textsuperscript{\rm 1,2},
-%   Author Two\textsuperscript{\rm 2},
-%   Author Three\textsuperscript{\rm 3}\\
-%   \textsuperscript{\rm 1}Affiliation One, City, Country\\
-%   \textsuperscript{\rm 2}Affiliation Two, City, Country\\
-%   \textsuperscript{\rm 3}Affiliation Three, City, Country\\
-%   one@aff1, two@aff2, three@aff3
-% }
-
 \begin{document}
 \maketitle
 
@@ -62,19 +53,8 @@
 % ≤ 200 words, no references/citations, auto-indented by the style. [file:10][file:11]
 
 \begin{abstract}
-We present a template for preparing AAAI-25 conference papers in \LaTeX{} using the official \texttt{aaai25.sty} style file and bibliography style. This skeleton is designed to minimize external dependencies while satisfying all requirements on fonts, margins, and layout. Authors should replace this text with an abstract of at most two hundred words that clearly states the problem, approach, and key results, without including any citations or references.
+Chain-of-thought (CoT) traces can reveal how models solve math word problems, but raw text is difficult to compare systematically across examples and models. We use reasoning graphs as an interpretable intermediate representation, where each trace is segmented into labeled reasoning steps with typed dependency edges, yielding a directed graph for quantitative structural analysis. We evaluate two LLMs on the same fixed GSM-Hard subset under identical decoding settings and build an end-to-end pipeline from traces to graphs to graph-derived features and statistical summaries. Across both models, incorrect traces contain more reasoning steps, greater graph depth, fewer fact-extraction nodes, and more off-schema steps than correct traces. Comparing problems where the two models disagree suggests that step count is a clearer signal than depth after partially controlling for problem difficulty. These results show that reasoning graphs can expose repeatable structural differences between successful and failed CoT traces, while also highlighting limits of extractor-dependent analysis.
 \end{abstract}
-
-% ------------------------------------------------------------------
-% Optional links (code / data / extended version)
-% ------------------------------------------------------------------
-% You may omit this environment entirely if you do not want to expose links yet. [file:10]
-%
-% \begin{links}
-% Codehttps://example.com/code
-% Datasetshttps://example.com/datasets
-% Extended versionhttps://example.com/extended
-% \end{links}
 
 % ------------------------------------------------------------------
 % Main Content
@@ -82,115 +62,195 @@ We present a template for preparing AAAI-25 conference papers in \LaTeX{} using 
 
 \section{Introduction}
 
-This section introduces the problem, motivation, and high-level contributions of this work. 
-The main body text must be in black, ten-point Times with twelve-point leading, and you must not change line spacing or font size. [file:10][file:11]
-The introduction may include paragraphs and citations such as \cite{vaswani2017attention}. 
+For many question-answering and reasoning tasks, large language models produce a long natural-language chain of thought before the final answer. Classic work showed that explicitly prompting for such a trace improves multi-step reasoning \cite{wei2022chainofthought}. More recently, reasoning-oriented models have taken this further. Instead of requiring an explicit instruction to reason step by step, extended intermediate reasoning is produced as an inherent part of their generation process.
+
+In both settings an individual receives the same kind of artifact. The model outputs a block of intermediate text called a \emph{reasoning trace}. The trace is typically noisy and varies widely in length and style across problems and models. The dependency structure among  traces is also not clearly exposed. Two traces can differ substantially in wording while sharing the same underlying reasoning pattern, and two traces that read similarly can differ in which facts they use and how they chain intermediate results.
+
+We study whether a fixed graph representation of a completed trace supports systematic comparison. Each trace is turned into a directed acyclic graph whose nodes are short steps and whose edges record step-to-step dependencies. Nodes also carry a coarse operation label, such as fact extraction, arithmetic, or verification. The graph is produced by a separate model, so it is an extracted view of the text rather than ground-truth cognitive structure. This choice follows work that warns against treating chain-of-thought text as a faithful record of internal computation \cite{turpin2023unfaithful,lanham2023faithfulness}. Our claims are therefore about properties of the observable trace under a fixed extraction interface, not about latent reasoning inside the backbone model.
+
+We apply this pipeline to the same fixed subset of GSM-Hard problems for two models. For each run we store the trace, final prediction, and correctness, convert traces to graphs, and compute structural features. We then contrast features between correct and incorrect traces within each model and use paired comparisons on problems where the models disagree, in order to separate trace structure from problem difficulty where possible.
 
 \section{Related Work}
 
-Summarize prior work that is most relevant to the proposed approach. 
-Use author--year citations as required by AAAI, for example, narrative uses like ``\citeauthor{vaswani2017attention} \shortcite{vaswani2017attention} introduce the Transformer architecture'' or parenthetical citations such as \cite{vaswani2017attention}. [file:10][file:11]
-Avoid adding packages that modify citation formatting beyond \texttt{natbib}, which the official style expects; \texttt{aaai25.sty} sets \texttt{aaai25.bst} when \texttt{natbib} is loaded.
+Chain-of-thought (CoT) prompting showed that intermediate natural-language reasoning can substantially improve large language models on multi-step tasks, especially arithmetic and symbolic reasoning \cite{wei2022chainofthought}. In this line of work, the primary objective is better final answers, and the trace is the intermediate artifact produced along the way. Our project starts from the same trace object, but treats it as data for analysis. We ask how the structure of a completed trace differs between correct and incorrect solutions.
+
+Decoding and inference-time aggregation methods further emphasize that a single problem can admit multiple plausible reasoning paths. Self-consistency samples diverse CoT trajectories and marginalizes over them by selecting the most common final answer \cite{wang2022selfconsistency}. This improves accuracy by using variation across paths, but the unit of comparison remains the final answer distribution. In contrast, we focus on structure \emph{within} a realized trace by converting it to a dependency graph and measuring properties of that graph.
+
+Other work makes reasoning structure explicit during generation by defining a search space over intermediate states. Tree of Thoughts generalizes linear CoT to a tree over candidate intermediate ``thoughts,'' and uses evaluation and search to enable lookahead and backtracking \cite{yao2023tree}. This tree organizes alternative future continuations of reasoning. Our representation differs in both timing and meaning. We do not search over candidates. Instead, we extract a dependency structure among steps in the trace that was actually produced.
+
+Graph of Thoughts extends tree-based reasoning to graph-shaped reasoning processes by modeling thoughts as vertices and dependencies as edges, and by introducing operations such as aggregation and refinement as part of an inference-time controller \cite{besta2024graph}. While the vocabulary is similar, our graphs are not a prompting or orchestration framework. We use graphs as a post-hoc interpretability layer. They provide a structured summary of a completed trace that supports feature computation and comparison across outcomes.
+
+Finally, several studies caution that CoT text should not be treated as a transparent record of a model's internal computation. Models may produce plausible explanations that rationalize biased or incorrect answers \cite{turpin2023unfaithful}, and faithfulness can vary substantially across tasks and model settings \cite{lanham2023faithfulness}. We adopt this caution in our framing. Reasoning graphs, as used here, structure the observable trace and are not intended as direct evidence of latent model cognition.
+
 
 \section{Method}
 
-Describe the model, algorithm, or theoretical framework in detail. 
-You may use standard math environments from \texttt{amsmath}, for example,
-\begin{equation}
-    \mathcal{L}(\theta) = \mathbb{E}_{x \sim \mathcal{D}} \Big[ \ell\big(f_\theta(x), y\big) \Big],
-\end{equation}
-as long as equations remain within the column width and do not overflow into the margins. [file:10][file:11]
-If equations are too wide, consider breaking them across lines or using inline notation.
+Our goal is not to train a new model, but to make chain-of-thought traces comparable. Each model response gives a free-form reasoning trace and a final numeric answer. We convert the trace into a graph representation and analyze graph structure.
 
-\subsection{Model Architecture}
+\subsection{Reasoning Graph Schema}
 
-Explain the components of the model and how they interact. 
-When using figures to visualize the architecture, import pre-cropped \texttt{.pdf}, \texttt{.png}, or \texttt{.jpg} files using \texttt{graphicx}, without \emph{clip} or \emph{trim} options. [file:10][file:11]
+For each problem, we represent the model's reasoning as a directed acyclic graph \(G=(V,E)\). Each node \(v \in V\) is a short reasoning step, and each directed edge \((u,v)\in E\) indicates that step \(v\) depends on step \(u\). The graph is produced by a separate structuring LLM, so it should be understood as an extracted view of the trace rather than a human-annotated ground truth.
 
-\subsection{Training Procedure}
+Each node stores a short text description and an operation label \(op(v)\) drawn from six tags: fact extraction, arithmetic, substitution, conclusion, verification, and an ``other'' catch-all. Each graph also stores the problem id, the model's final answer, the gold answer, and a correctness flag. Figure~\ref{fig:graph-examples} shows two extracted graphs from our pipeline.
 
-Detail optimization, hyperparameters, and training data. 
-If you need pseudocode, consider using the algorithm environments recommended in the instructions or a simple figure-like environment, keeping the caption formatting consistent with other figures. [file:10][file:11]
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{graph_examples.png}
+\caption{Two extracted reasoning graphs from our pipeline. Nodes
+are reasoning steps colored by op type; edges encode dependencies.}
+\label{fig:graph-examples}
+\end{figure}
+
+\subsection{Pipeline and Inference Settings}
+
+\textbf{Trace collection.} We run two Ollama Cloud models, gpt-oss:120b-cloud and gemma4:31b-cloud, on the same fixed set of GSM-Hard problems. Runs use deterministic decoding with temperature set to \(0\). For each problem, we store the reasoning trace, token counts, extracted final answer, gold answer, and correctness.
+\smallskip
+
+\noindent \textbf{Graph extraction.} We then pass each labeled trace to a structuring prompt to Claude Opus 4.6, that returns one JSON reasoning graph per trace. Steps are ordered, include explicit dependency lists, and receive an operation label. Trace and graph files are kept in manifest order so that retries and merges do not break problem-level alignment.
+\smallskip
+
+\noindent \textbf{Feature analysis.} From each graph we compute structural features. We highlight a small set of core quantities below:
+\begin{align}
+ n_{\text{steps}} &= |V| \\
+ \text{depth}(G) &= \max_{p \in \mathcal{P}(G)} |p| \\
+ \overline{d^{+}} &= \frac{1}{|V|}\sum_{v\in V} d^{+}(v) \\
+ d^{+}_{\max} &= \max_{v\in V} d^{+}(v) \\
+ \text{frac}_{\text{facts}} &= \frac{|\{v \in V : op(v)=\text{fact extraction}\}|}{|V|}.
+\end{align}
+Here \(n_{\text{steps}}\) is the number of steps, \(\text{depth}(G)\) is the longest dependency chain over all directed paths \(p \in \mathcal{P}(G)\), \(d^{+}(v)\) is the out-degree of node \(v\), \(\overline{d^{+}}\) and \(d^{+}_{\max}\) summarize fan-out, and \(\text{frac}_{\text{facts}}\) is the fraction of nodes labeled as fact extraction.
+We also compute additional degree-based summaries, operation-type counts and fractions, and simple anomaly counts such as unsupported arithmetic steps (arithmetic nodes with empty dependency lists) and orphan nodes (non-conclusion nodes with out-degree \(0\)). Statistical comparisons between correct and incorrect traces are described in the Experiments section.
 
 \section{Experiments}
 
-In this section, describe datasets, baselines, metrics, and experimental protocols. 
-Tables should be typeset using standard \texttt{table} and \texttt{tabular} environments, with captions appearing below the table in ten-point roman type. [file:10][file:11]
-Avoid resizing tables with commands that globally scale fonts; instead, adjust content (for example, fewer decimal places or shorter labels).
-
 \subsection{Datasets}
 
-Describe the datasets, including relevant statistics such as number of examples, features, and labels. 
-If you need to include dataset licenses or sources, reference them in the text or footnotes, and provide full citations in the references section. [file:11]
+We evaluate the pipeline on a fixed set of 200 problems from
+\textsc{GSM-Hard} \cite{gao2023palprogramaidedlanguagemodels}, which is a stress-test variant of GSM8K \cite{cobbe2021trainingverifierssolvemath}
+that replaces the small numbers in each grade-school word problem
+with larger ones. The arithmetic structure is unchanged, but
+the inflated numbers make the problems much harder for most models. We chose this dataset after a lot of back and forth because it isolates arithmetic reasoning from just having the knowledge, so
+structural differences in the trace are more likely to reflect
+the real reasoning behavior than any missing domain knowledge.
+
 
 \subsection{Baselines and Metrics}
 
-List the baselines and evaluation metrics used to compare methods. 
-Be explicit about implementation details and hyperparameters when they materially affect results, and cite any external codebases or toolkits appropriately. [file:11]
+This project is not proposing a new model so the natural baselines are
+alternative \emph{features} of the same graph rather than alternative
+systems. We compare three families: Univariate tests show whether
+individual graph features differ between correct and incorrect
+traces. Logistic regression tests whether features carry an actual independent
+signal once we control for collinear ones such as
+\texttt{n\_steps} and \texttt{depth}. Binary motif flags represent
+structural failures or irregularities (for example, an arithmetic step
+with no inputs, or a step the schema cannot label). Across all three
+we use \emph{cross-model comparison} as the primary evidence that
+an effect is real, since a structural pattern that appears
+independently in two models is harder to dismiss as something wrong with just that model. Full per-feature tables are reported in
+the Appendix and README in the code.
 
 \subsection{Results}
 
-Present quantitative and qualitative results. 
-For figures, place them near the first reference in the text, ensure they do not intrude into margins, and keep labels at least nine-point type inside the image. [file:10][file:11]
-Discuss trends and ablations clearly, referencing tables and figures using labels such as Figure~\ref{fig:overview} or Table~\ref{tab:results}.
+\subsubsection*{Accuracy is similar across models:}
+\texttt{gpt-oss} correctly solves 159 of 200 problems and \texttt{gemma4}
+solves 161 of the same 200 correctly. The two models
+agree on most problems but disagree on 14, which gives us a small
+but useful set of paired observations where the same problem was
+correctly solved by one model and not the other.
 
-% Example figure placeholder (you can delete this block if not needed yet)
-% Uncomment \includegraphics when figure1.pdf (or .png/.jpg) exists in this folder.
-\begin{figure}[t]
-    \centering
-    \setlength{\fboxsep}{6pt}
-    \fbox{\begin{minipage}{0.82\columnwidth}\centering\small
-    Placeholder figure. Add \texttt{figure1.pdf} (or \texttt{.png}/\texttt{.jpg}), delete this box, and use
-    \texttt{\textbackslash includegraphics[width=0.9\textbackslash columnwidth]\{figure1\}}.
-    \end{minipage}}
-    \caption{Example figure caption illustrating how to format images in AAAI style.}
-    \label{fig:overview}
-\end{figure}
 
-% Example table placeholder (delete or replace as needed)
-\begin{table}[t]
-    \centering
-    \begin{tabular}{lcc}
-        \hline
-        Method & Metric A & Metric B \\
-        \hline
-        Baseline 1 & 0.75 & 0.62 \\
-        Baseline 2 & 0.79 & 0.65 \\
-        Our Method & \textbf{0.83} & \textbf{0.71} \\
-        \hline
-    \end{tabular}
-    \caption{Example table showing how to format tabular results.}
-    \label{tab:results}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccc}
+\hline
+Feature & gpt-oss & gemma4 & gpt-oss & gemma4 \\
+        & (corr.) & (corr.) & (incorr.) & (incorr.) \\
+\hline
+\texttt{n\_steps}      & 7.49 & 7.32 & 9.54 & 9.03 \\
+\texttt{depth}         & 4.24 & 4.21 & 5.37 & 4.92 \\
+\texttt{frac\_facts}   & 0.36 & 0.34 & 0.29 & 0.31 \\
+\texttt{max\_out\_deg} & 1.71 & 1.76 & 2.15 & 2.18 \\
+\texttt{orphan\_nodes} & 0.09 & 0.06 & 0.24 & 0.13 \\
+\hline
+\end{tabular}
+\caption{Mean values of selected graph features on correct and
+incorrect traces for both models.}
+\label{tab:features}
 \end{table}
+
+\subsubsection*{Incorrect traces are structurally larger:}
+On both models, incorrect traces have more steps and greater depth
+than correct ones, with effects significant at $p < 10^{-3}$ in
+every case (Table~\ref{tab:features}). The size of the effect is pretty similar across models. We found each
+additional layer of reasoning depth slices the odds of a correct
+answer by around one third, with odds ratios within 0.01 of each
+other across the two models which is the cleanest cross-model
+comparison we observed.
+
+\subsubsection*{Correct traces anchored more to the problem:}
+The amount of nodes labeled \texttt{extract\_fact} is significantly
+higher in correct traces for both models ($p=2.9\!\times\!10^{-4}$ for
+\texttt{gpt-oss}, $p=0.037$ for \texttt{gemma4}). Correct traces spend
+proportionally more of their length pulling numbers and facts out of the
+problem statement while incorrect traces tend to have longer chains that are built on earlier intermediate values.
+
+\subsubsection*{Off-schema steps are the strongest single predictor (with a caveat):}
+
+The by-far strongest single feature in the study is the flag that fires when the extractor labels any step \texttt{other}
+(i.e., outside the five-category reasoning schema) and appears in roughly
+half of incorrect traces but only 6 to 8\% of correct ones across both
+models and also survives controls for depth and trace length.
+But \texttt{other} is also where the extractor sends any step it
+cannot classify, so the flag mixes three things together: actual
+weird structural reasoning, limitations of the extractor on unfamiliar traces, and potential problems in the schema's coverage of LLM reasoning. Even though statistically, all three predict real failure, only the first actually targets the reasoning. This is an important finding because it opens doors for real analysis and also project limitations.
+
+\subsubsection*{Only step count survives the within-problem control:}
+We looked at both the depth of graphs and the number of nodes it had when assessing the structural size. On the 14 problems where the models disagreed, step count was higher for wrong traces more than 2/3 of the time, which is a promising but under powered result. Depth did not show such a pattern, which we attributed to the depth of graphs correlating more to the problem difficulty while the actual step count carries the signals about the reasoning. 
+
+
 
 \section{Conclusion}
 
-Summarize the main contributions and findings, and discuss limitations and future work. 
-Keep this section concise, focusing on what the reader should remember after reading the paper and how the work might be extended. [file:11]
+This project explored reasoning graphs as a post-hoc representation
+for LLM chain-of-thought traces. We built an end-to-end pipeline from
+trace collection through structured graph extraction to feature
+analysis, applied it to a controlled setting (200 GSM-Hard problems and
+two open-weight models), and analyzed what the representation makes visible. Our overall contribution is both the pipeline and schema and the analytical patterns we identified when using it.
 
-% ------------------------------------------------------------------
-% Optional Unnumbered Sections
-% ------------------------------------------------------------------
+Several analytical findings show that the representation we used produces stable and interpretable measurements. Incorrect traces were structurally larger than correct traces, extracted fewer facts from the original problem, and are more likely to contain steps that the schema cannot label. 
 
-% Ethical statement is optional but encouraged in many venues. [file:10][file:11]
-\section*{Ethical Statement}
+Running two models on the same problems set up a paired comparison that turned out to be more informative than the pooled one. Before this, we found large depth to be a signal of failure, but the within-problem control we ran on the pairs showed that it might have something to do with the problem difficulty as well. But, in the same control, we found higher step count of the extracted graphs carried a strong signal pointing towards failure. This taught us an important lesson about misleading statistical results and making sure to add important controls in our experiments.
 
-If applicable, discuss potential ethical and societal implications of this work, including both positive and negative impacts. 
-Mention any foreseeable misuse, biases in datasets or models, and mitigation strategies considered during development. [file:11]
+\subsection{Limitations}
 
-% Acknowledgments: unnumbered, just before references. [file:10][file:11]
-\section*{Acknowledgments}
+Along with this, the pipeline has clear limitations that we are aware of. The graphs are produced by an LLM, and although we tried to limit its failure by using a leading model like Opus 4.6, its inherent bias and mistakes could cause problems in extraction. We also verify schema and dependency existence but don't fully check if the graph matches the prose in an outside verification step.
 
-We thank our colleagues and collaborators for helpful discussions and feedback. 
-This work was supported in part by example funding sources, whose support we gratefully acknowledge.
+Another limitation is the narrow domain the dataset contains. This project tested reasoning on math problems only, and although they are a perfect exercise of LLM reasoning, we are unsure if the structural graph differences we found would transfer to other domains like law or science. Although not proven, we also thought about how GSM-Hard is derived from an open source GSM8K, which could be embedded in the models' training data. Our concern for major data leakage is minimal, but we are aware of its possible existence.
 
-% ------------------------------------------------------------------
-% References
-% ------------------------------------------------------------------
-% Use BibTeX with aaai25.bst. The style is already set by aaai25.sty, so
-% you only need \bibliography{...}. [file:10][file:11]
-% Replace 'aaai25' with the actual .bib filename, e.g., 'references'.
+\subsection{Future Work}
+We have discussed many possible project extensions that target each of these weaknesses directly and are mostly limited on resources and time in doing so. A small human-annotated calibration subset would let us measure how faithfully the LLM extractor is to the original reasoning traces. We also could add another verifier agent using another stronger model, to re-check the extractor and fix any issues it finds. Extending this pipeline to another dataset could either strengthen or expose our findings, but would be an obvious next step. Dataset candidates would be a domain diverse one like Humanity's Last Exam \cite{phan2025lastexam}, which spans across several domains and is very difficult, or more specific law or science problems. We could also compare models from very different training paradigms,
+since both of the models we ran were cloud-hosted and produced under
+similar conditions, running an RL-trained reasoning model alongside
+a base open-weight model would tell us how strong our cross model comparisons were and address the possible data leakage.
 
+Beyond targeting limitations, we have proposed using the structural features from the graphs to build a simple classifier, which would classify future reasoning graphs on correctness. The structural differences we found could also be used to craft system prompts for reasoning LLMs, to avoid making those reasoning mistakes in the future. Lastly, we could use CBR techniques to store reasoning failures found and help systems avoid failure repetition.
+
+Overall, our project tested an idea more than it proved one. The
+reasoning graph representation surfaced patterns we would not have
+noticed in raw traces, and the within-problem control kept us
+honest about which of those patterns actually held up. The
+work is best understood as a starting point for the kind of
+structural analysis we think these traces deserve.
+
+\section{Statements}
+
+\subsection{Generative AI Use}
+
+Our only use(s) of GenAI were for Formatting our LaTeX report (especially the math) and Grammar Checking using Claude (Anthropic). No generative AI was used for idea generation, outlining, or drafting content.
+
+\subsection{Division of Work}
+All three members majorly contributed to all components of the project evenly. Neel helped work up original pipeline, coded scripts for and ran reasoning models, and helped write related work and methods. Owen ran graph extraction and most of analysis, wrote experiments and conclusion and built appendix. Logan built presentation structure and slides, researched datasets and outside work, helped annotate code and ran some analysis. Regular communication allowed significant cross-contribution throughout.
 \bibliography{aaai25}
 
 \end{document}

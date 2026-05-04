@@ -1,0 +1,555 @@
+\documentclass[letterpaper]{article}
+\usepackage{aaai25}
+\nocopyright
+\usepackage{natbib}
+\usepackage{times}
+\usepackage{helvet}
+\usepackage{courier}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage[colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue]{hyperref}
+
+\setcounter{secnumdepth}{0}
+
+\title{Appendix: Reasoning Graphs for\\Interpretable Chain-of-Thought Analysis}
+
+\author{
+    Neel Bhate\textsuperscript{\rm 1},
+    Owen Kleinmaier\textsuperscript{\rm 1},
+    Logan Reddell\textsuperscript{\rm 1}\\
+    \textsuperscript{\rm 1}Luddy School of Informatics, Computing, and Engineering, Indiana University Bloomington, Bloomington, Indiana, USA\\
+    nbhate@iu.edu, owklein@iu.edu, lreddell@iu.edu
+}
+
+\begin{document}
+\maketitle
+% Extra stretch between words so justified paragraphs with many \texttt{...}
+% segments (Courier does not hyphenate) do not trigger underfull \hbox 10000.
+\emergencystretch=3em
+
+\appendix
+
+This appendix collects supporting material for the main paper.
+\hyperref[app:walkthrough]{The end-to-end example} walks through one problem.
+\hyperref[app:stats]{The statistical tables} give Mann-Whitney U and logistic
+regression results for both models.
+\hyperref[app:motifs]{The motif analysis} reports three targeted flags and
+five additional flags.
+\hyperref[app:within]{The within-problem analysis} covers the 14 conflicting
+pairs between models.
+\hyperref[app:examples]{The graph examples} show visualizations for both
+models.
+Result files referenced here are in the project repository.
+
+\section{End-to-end Pipeline Example}
+\label{app:walkthrough}
+
+\subsection{Problem and Trace}
+
+\noindent \textbf{Problem ID:} \texttt{gsm-hard-b2-12} \\
+\textbf{Model:} \texttt{gpt-oss:120b-cloud} \\
+\textbf{Correct:} yes \\
+\textbf{Gold answer:} 120
+
+\smallskip
+\noindent \textbf{Question:}
+\begin{quote}
+Martha's cat is 5 times faster than her turtle. If the cat can run
+15 feet/second, how many feet can her turtle crawl in 40 seconds?
+\end{quote}
+
+\noindent \textbf{Thinking trace (raw model output):}
+{\small
+\begin{verbatim}
+We have cat speed = 15 ft/s. Cat is 5 times
+faster than turtle. So turtle speed = cat
+speed / 5 = 15/5 = 3 ft/s. Over 40 seconds,
+distance = 3 * 40 = 120 ft. So answer: 120.
+\end{verbatim}
+}
+
+\noindent \textbf{Final answer text:}
+{\small
+\begin{verbatim}
+The cat runs at 15 ft/s and is 5 times faster
+than the turtle, so the turtle's speed is
+15 ft/s / 5 = 3 ft/s. In 40 seconds the turtle
+covers 3 ft/s x 40 s = 120 ft.
+FINAL ANSWER: 120
+\end{verbatim}
+}
+
+\subsection{Extracted Graph (JSON)}
+
+The JSON below comes from \texttt{gsm\_hard\_claude.py} (Claude Opus~4.6).
+Each step stores an identifier (\texttt{id}), step text (\texttt{text}),
+dependencies (\texttt{depends\_on}), and an operation tag (\texttt{op})
+from the schema.
+
+{\scriptsize
+\begin{verbatim}
+{
+  "question_id": "gsm-hard-b2-12",
+  "steps": [
+    {
+      "id": "S1",
+      "text": "Cat speed is 15 ft/s",
+      "depends_on": [],
+      "op": "extract_fact"
+    },
+    {
+      "id": "S2",
+      "text": "Cat is 5 times faster than turtle",
+      "depends_on": [],
+      "op": "extract_fact"
+    },
+    {
+      "id": "S3",
+      "text": "Turtle speed = 15 / 5 = 3 ft/s",
+      "depends_on": ["S1", "S2"],
+      "op": "arithmetic"
+    },
+    {
+      "id": "S4",
+      "text": "Time given is 40 seconds",
+      "depends_on": [],
+      "op": "extract_fact"
+    },
+    {
+      "id": "S5",
+      "text": "Distance = 3 ft/s x 40 s = 120 ft",
+      "depends_on": ["S3", "S4"],
+      "op": "arithmetic"
+    },
+    {
+      "id": "S6",
+      "text": "Turtle crawls 120 feet in 40 seconds",
+      "depends_on": ["S5"],
+      "op": "conclude"
+    }
+  ],
+  "final_answer": "120",
+  "gold_answer": 120.0,
+  "is_correct": true,
+  "_meta": {
+    "trace_model": "gpt-oss:120b-cloud",
+    "graph_model": "claude-opus-4-6",
+    "source_file": "gsm_hard_traces.jsonl"
+  }
+}
+\end{verbatim}
+}
+
+\noindent \textbf{Graph structure.} \texttt{S1}, \texttt{S2}, and
+\texttt{S4} are root nodes (no dependencies). \texttt{S3} depends
+on \texttt{S1} and \texttt{S2}. \texttt{S5} depends on \texttt{S3}
+and \texttt{S4}. \texttt{S6} depends on \texttt{S5}. This is a
+shallow DAG with depth 3 and no branching: a clean
+linear-then-converge structure.
+
+\subsection{Graph Visualization}
+
+Figure~\ref{fig:appendix-case-studies} shows DAG visualizations for three
+\texttt{gpt-oss} traces (two correct, one incorrect). Nodes are colored by
+operation type. Incorrect traces look denser than the walkthrough example
+because the underlying problems require more reasoning.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/gptoss_case_studies.png}
+\caption{Case study graphs for four \texttt{gpt-oss} traces (two
+correct, two incorrect). Color denotes op type: blue =
+\texttt{extract\_fact}, orange = \texttt{arithmetic}, green =
+\texttt{substitute}, red = \texttt{conclude}, yellow =
+\texttt{verify}, grey = \texttt{other}.}
+\label{fig:appendix-case-studies}
+\end{figure}
+
+\subsection{Computed Features}
+
+Table~\ref{tab:appendix-features} reports the structural features
+computed by \texttt{motif\_analysis.py} for
+\texttt{gsm-hard-b2-12}.
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcl}
+\hline
+Feature & Value & Description \\
+\hline
+\texttt{n\_steps} & 6 & Total reasoning steps \\
+\texttt{depth} & 3 & Longest dependency chain (in edges) \\
+\texttt{n\_arithmetic} & 2 & Arithmetic step count \\
+\texttt{n\_facts} & 3 & \texttt{extract\_fact} step count \\
+\texttt{n\_conclude} & 1 & \texttt{conclude} step count \\
+\texttt{frac\_arithmetic} & 0.333 & Fraction arithmetic \\
+\texttt{frac\_facts} & 0.500 & Fraction \texttt{extract\_fact} \\
+\texttt{unsupported\_arithmetic} & 0 & Arithmetic with no inputs \\
+\texttt{unsupported\_conclude} & 0 & \texttt{conclude} with no inputs \\
+\texttt{conclude\_in\_degree} & 1 & In-degree of \texttt{conclude} \\
+\texttt{max\_out\_degree} & 1 & Max out-degree \\
+\texttt{mean\_out\_degree} & 0.833 & Mean out-degree \\
+\texttt{mean\_in\_degree} & 0.833 & Mean in-degree \\
+\texttt{orphan\_nodes} & 0 & Orphan node count \\
+\hline
+\end{tabular}
+}
+\caption{Structural features for \texttt{gsm-hard-b2-12}. Here
+\texttt{frac\_facts}${}=0.50$ exceeds the correct-trace mean (0.359), and
+\texttt{depth}${}=3$ is below that mean (4.24), matching the main findings.}
+\label{tab:appendix-features}
+\end{table}
+
+\section{Full Statistical Tables}
+\label{app:stats}
+
+\subsection{Feature Comparison: gpt-oss}
+
+Table~\ref{tab:appendix-mw-gptoss} reports Mann-Whitney U test
+results comparing correct ($n{=}159$) and incorrect ($n{=}41$)
+traces for \texttt{gpt-oss}, sorted by p-value.
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\hline
+Feature & Mean (corr.) & Mean (incorr.) & p-value & Sig \\
+\hline
+\texttt{n\_steps}              & 7.491 & 9.537 & 5.34e-07 & *** \\
+\texttt{depth}                 & 4.239 & 5.366 & 5.28e-06 & *** \\
+\texttt{mean\_out\_degree}     & 0.990 & 1.099 & 1.75e-04 & *** \\
+\texttt{mean\_in\_degree}      & 0.990 & 1.099 & 1.75e-04 & *** \\
+\texttt{frac\_facts}           & 0.359 & 0.287 & 2.90e-04 & *** \\
+\texttt{max\_out\_degree}      & 1.711 & 2.146 & 0.001 & ** \\
+\texttt{n\_arithmetic}         & 3.377 & 4.585 & 0.003 & ** \\
+\texttt{orphan\_nodes}         & 0.088 & 0.244 & 0.043 & * \\
+\texttt{conclude\_in\_degree}  & 1.170 & 1.317 & 0.156 & ns \\
+\texttt{unsupported\_arith.}   & 0.050 & 0.000 & 0.174 & ns \\
+\texttt{frac\_arithmetic}      & 0.446 & 0.457 & 0.386 & ns \\
+\texttt{n\_facts}              & 2.673 & 2.683 & 0.660 & ns \\
+\texttt{n\_conclude}           & 1.000 & 1.000 & 1.000 & ns \\
+\texttt{unsupported\_conclude} & 0.000 & 0.000 & 1.000 & ns \\
+\hline
+\end{tabular}
+}
+\caption{Mann-Whitney U feature comparison for \texttt{gpt-oss}.
+Significance: *** $p{<}0.001$, ** $p{<}0.01$, * $p{<}0.05$, ns
+$p{\geq}0.10$.}
+\label{tab:appendix-mw-gptoss}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/gptoss_feature_comparison.png}
+\caption{Boxplots of structural features on correct vs.\ incorrect
+\texttt{gpt-oss} traces.}
+\label{fig:appendix-boxplots-gptoss}
+\end{figure}
+
+\subsection{Feature Comparison: gemma4}
+
+Table~\ref{tab:appendix-mw-gemma4} reports the same comparison for
+\texttt{gemma4} (correct $n{=}161$, incorrect $n{=}39$).
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\hline
+Feature & Mean (corr.) & Mean (incorr.) & p-value & Sig \\
+\hline
+\texttt{n\_steps}              & 7.317 & 9.026 & 2.56e-05 & *** \\
+\texttt{depth}                 & 4.211 & 4.923 & 0.002 & ** \\
+\texttt{n\_arithmetic}         & 3.509 & 4.256 & 0.023 & * \\
+\texttt{mean\_out\_degree}     & 1.001 & 1.060 & 0.033 & * \\
+\texttt{mean\_in\_degree}      & 1.001 & 1.060 & 0.033 & * \\
+\texttt{frac\_facts}           & 0.341 & 0.308 & 0.037 & * \\
+\texttt{n\_conclude}           & 1.000 & 1.026 & 0.043 & * \\
+\texttt{max\_out\_degree}      & 1.758 & 2.179 & 0.058 & . \\
+\texttt{orphan\_nodes}         & 0.062 & 0.128 & 0.162 & ns \\
+\texttt{n\_facts}              & 2.497 & 2.744 & 0.323 & ns \\
+\texttt{unsupported\_arith.}   & 0.043 & 0.103 & 0.384 & ns \\
+\texttt{frac\_arithmetic}      & 0.478 & 0.462 & 0.658 & ns \\
+\texttt{conclude\_in\_degree}  & 1.130 & 1.179 & 0.664 & ns \\
+\texttt{unsupported\_conclude} & 0.000 & 0.000 & 1.000 & ns \\
+\hline
+\end{tabular}
+}
+\caption{Mann-Whitney U feature comparison for \texttt{gemma4}.}
+\label{tab:appendix-mw-gemma4}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/gemma4_feature_comparison.png}
+\caption{Boxplots of structural features on correct vs.\ incorrect
+\texttt{gemma4} traces.}
+\label{fig:appendix-boxplots-gemma4}
+\end{figure}
+
+\subsection{Logistic Regression}
+
+Table~\ref{tab:appendix-logit} reports univariate logistic
+regression with correctness as the outcome (1 = correct, 0 =
+incorrect). Correlation matrices appear in
+Figures~\ref{fig:appendix-corr-gptoss}
+and~\ref{fig:appendix-corr-gemma4}. An OR less than 1 means the
+feature predicts failure.
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
+\hline
+Feature & OR & p-value & Sig \\
+\hline
+\multicolumn{4}{l}{\textit{gpt-oss:120b}} \\
+\texttt{depth}            & 0.673 & 0.015 & ** \\
+\texttt{orphan\_nodes}    & 0.457 & 0.097 & * \\
+\texttt{frac\_facts}      & 30.603 & 0.113 & \\
+\texttt{max\_out\_degree} & 0.894 & 0.684 & \\
+\hline
+\multicolumn{4}{l}{\textit{gemma4:31b}} \\
+\texttt{depth}            & 0.664 & 0.013 & ** \\
+\texttt{max\_out\_degree} & 0.762 & 0.208 & \\
+\texttt{orphan\_nodes}    & 0.611 & 0.436 & \\
+\texttt{frac\_facts}      & 0.499 & 0.756 & \\
+\hline
+\end{tabular}
+}
+\caption{The depth OR of 0.673 (\texttt{gpt-oss}) and 0.664
+(\texttt{gemma4}) are within 0.01 of each other, the cleanest
+cross-model agreement in the project.}
+\label{tab:appendix-logit}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/gptoss_correlation_matrix.png}
+\caption{Spearman correlation matrix for \texttt{gpt-oss} graph
+features.}
+\label{fig:appendix-corr-gptoss}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/gemma4_correlation_matrix.png}
+\caption{Spearman correlation matrix for \texttt{gemma4} graph
+features.}
+\label{fig:appendix-corr-gemma4}
+\end{figure}
+
+\section{Motif Analysis}
+\label{app:motifs}
+
+\subsection{Targeted Motifs}
+
+We used three hypothesis-driven binary flags (yes/no).
+\texttt{late\_arithmetic}: an arithmetic node at depth $\geq 4$ whose
+ancestors include no \texttt{extract\_fact} node.
+\texttt{verbose\_ungrounded}: $n_{\text{steps}} \geq 8$ AND
+$\text{frac}_{\text{facts}} < 0.3$.
+\texttt{early\_branching}: some node in the first half of the trace has
+out-degree $\geq 3$.
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\hline
+Motif & Present & Correct & Incorrect & Fisher p \\
+\hline
+\multicolumn{5}{l}{\textit{gpt-oss:120b}} \\
+\texttt{late\_arithmetic}     & 1  & 1  & 0  & 1.0000 \\
+\texttt{verbose\_ungrounded}  & 33 & 15 & 18 & 1.55e-06 \\
+\texttt{early\_branching}     & 27 & 18 & 9  & 0.0689 \\
+\hline
+\multicolumn{5}{l}{\textit{gemma4:31b}} \\
+\texttt{late\_arithmetic}     & 0  & 0  & 0  & 1.0000 \\
+\texttt{verbose\_ungrounded}  & 34 & 21 & 13 & 0.0041 \\
+\texttt{early\_branching}     & 30 & 23 & 7  & 0.3608 \\
+\hline
+\end{tabular}
+}
+\caption{Targeted motif results for both models.}
+\label{tab:appendix-targeted}
+\end{table}
+
+\noindent Only \texttt{verbose\_ungrounded} replicates across both models;
+it is largely a composite of \texttt{n\_steps} and \texttt{frac\_facts},
+which are individually significant elsewhere.
+\texttt{late\_arithmetic} fires too rarely to test.
+\texttt{early\_branching} is significant in only one model.
+
+\subsection{Additional Motifs}
+
+After visual inspection of the converted graphs, we tested five more flags.
+\texttt{has\_offschema\_node}: some step uses an op outside the five-category
+schema.
+\texttt{orphan\_fact}: some \texttt{extract\_fact} node has out-degree~0.
+\texttt{linear\_chain}: $n_{\text{steps}} \geq 7$ AND
+\texttt{mean\_out\_degree} $\leq 1.1$ AND \texttt{max\_out\_degree} $\leq 2$.
+\texttt{high\_fanin\_conclude}: some \texttt{conclude} node has in-degree
+$\geq 3$.
+\texttt{failed\_verification}: the trace has at least one \texttt{verify}
+step (a diagnostic for attempted verification).
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
+\hline
+Motif & Present & Correct & Incorrect & Fisher p \\
+\hline
+\multicolumn{5}{l}{\textit{gpt-oss:120b}} \\
+\texttt{has\_offschema\_node} & 34 & 13 & 21 & 3.97e-09 \\
+\texttt{orphan\_fact}         & 3  & 3  & 0  & 1.0000 \\
+\texttt{linear\_chain}        & 86 & 70 & 16 & 0.7737 \\
+\texttt{high\_fanin\_conc.}   & 5  & 2  & 3  & 0.0595 \\
+\texttt{failed\_verification} & 52 & 36 & 16 & 0.0291 \\
+\hline
+\multicolumn{5}{l}{\textit{gemma4:31b}} \\
+\texttt{has\_offschema\_node} & 28 & 10 & 18 & 1.34e-08 \\
+\texttt{orphan\_fact}         & 3  & 3  & 0  & 1.0000 \\
+\texttt{linear\_chain}        & 89 & 70 & 19 & 0.3394 \\
+\texttt{high\_fanin\_conc.}   & 1  & 0  & 1  & 0.1950 \\
+\texttt{failed\_verification} & 32 & 24 & 8  & 0.2631 \\
+\hline
+\end{tabular}
+}
+\caption{Additional motif results for both models.}
+\label{tab:appendix-additional}
+\end{table}
+
+\noindent \texttt{has\_offschema\_node} replicates strongly and is the largest
+single effect among these five.
+\texttt{failed\_verification} is significant for \texttt{gpt-oss}.
+The other three motifs do not replicate; we still report them for completeness.
+
+\section{Within-problem Analysis}
+\label{app:within}
+
+Of the 200 shared problems, both models agreed on 186 (153 jointly
+correct, 33 jointly incorrect). The 14 conflicting problems are the
+only ones where within-problem comparison is possible.
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcc}
+\hline
+Outcome & Count & \% \\
+\hline
+both correct                              & 153 & 76.5\% \\
+both incorrect                            & 33  & 16.5\% \\
+\texttt{gpt-oss} correct, \texttt{gemma4} wrong & 6   & 3.0\%  \\
+\texttt{gemma4} correct, \texttt{gpt-oss} wrong & 8   & 4.0\%  \\
+\textbf{discordant total}                 & \textbf{14} & \textbf{7.0\%} \\
+\hline
+\end{tabular}
+}
+\caption{Model concordance on the 200 shared problems.}
+\label{tab:appendix-concordance}
+\end{table}
+
+Table~\ref{tab:appendix-wilcoxon} reports the Wilcoxon signed-rank
+test on the conflicting pairs (delta $=$ incorrect $-$ correct;
+one-sided $H_1$: delta $> 0$).
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
+\hline
+Feature & Median $\Delta$ & \% $\Delta>0$ & p-value \\
+\hline
+\texttt{depth}                 & $+0.50$ & 50\% & 0.3380 \\
+\texttt{n\_steps}              & $+1.00$ & 64\% & 0.0231 \\
+\texttt{frac\_facts}           & $-0.04$ & 21\% & 0.9817 \\
+\texttt{frac\_arithmetic}      & $-0.01$ & 43\% & 0.5968 \\
+\texttt{max\_out\_degree}      & $+0.50$ & 50\% & 0.0478 \\
+\texttt{mean\_out\_degree}     & $+0.00$ & 43\% & 0.0252 \\
+\texttt{orphan\_nodes}         & $+0.00$ & 36\% & 0.0169 \\
+\texttt{n\_arithmetic}         & $+0.50$ & 50\% & 0.0478 \\
+\texttt{n\_facts}              & $+0.00$ & 29\% & 0.6185 \\
+\texttt{unsupported\_arith.}   & $+0.00$ & 0\%  & 1.0000 \\
+\hline
+\end{tabular}
+}
+\caption{Wilcoxon signed-rank test on 14 discordant pairs.}
+\label{tab:appendix-wilcoxon}
+\end{table}
+
+Table~\ref{tab:appendix-perpair} shows the per-pair detail, sorted
+by depth delta in descending order.
+
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llcccc}
+\hline
+Problem & Winner & $d_c$ & $d_i$ & $\Delta d$ & $\Delta s$ \\
+\hline
+\texttt{gsm-hard-16}      & gemma4  & 5 & 8 & $+3$ & $+3$ \\
+\texttt{gsm-hard-30}      & gpt-oss & 4 & 5 & $+1$ & $+2$ \\
+\texttt{gsm-hard-b2-14}   & gemma4  & 4 & 5 & $+1$ & $+2$ \\
+\texttt{gsm-hard-b2-49}   & gemma4  & 4 & 5 & $+1$ & $+2$ \\
+\texttt{gsm-hard-b2-74}   & gpt-oss & 3 & 4 & $+1$ & $+1$ \\
+\texttt{gsm-hard-b2-113}  & gpt-oss & 4 & 5 & $+1$ & $-1$ \\
+\texttt{gsm-hard-b2-139}  & gemma4  & 3 & 4 & $+1$ & $+3$ \\
+\texttt{gsm-hard-45}      & gpt-oss & 3 & 3 & $0$  & $0$  \\
+\texttt{gsm-hard-b2-48}   & gemma4  & 4 & 4 & $0$  & $+1$ \\
+\texttt{gsm-hard-b2-55}   & gemma4  & 5 & 5 & $0$  & $+2$ \\
+\texttt{gsm-hard-b2-104}  & gpt-oss & 5 & 4 & $-1$ & $+1$ \\
+\texttt{gsm-hard-b2-126}  & gemma4  & 8 & 7 & $-1$ & $-1$ \\
+\texttt{gsm-hard-b2-3}    & gemma4  & 6 & 4 & $-2$ & $-2$ \\
+\texttt{gsm-hard-b2-68}   & gpt-oss & 6 & 3 & $-3$ & $0$  \\
+\hline
+\end{tabular}
+}
+\caption{Per-pair feature deltas for the 14 discordant problems.
+$d_c$ and $d_i$ are the depths of the correct and incorrect
+traces; $\Delta d$ and $\Delta s$ are the depth and step count
+deltas (incorrect $-$ correct).}
+\label{tab:appendix-perpair}
+\end{table}
+
+\section{Additional Graph Examples}
+\label{app:examples}
+
+Figures~\ref{fig:appendix-grid-correct} and~\ref{fig:appendix-grid-incorrect}
+show 20 correct and 20 incorrect \texttt{gpt-oss} reasoning graphs, produced
+by \texttt{visualize\_graphs.py}.
+The analogous \texttt{gemma4} grids live in
+\texttt{experiments/gemma4-31b-cloud/graph\_grids/} in the repository.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/gptoss_correct_20.png}
+\caption{20 correct \texttt{gpt-oss} reasoning graphs. Color
+denotes op type.}
+\label{fig:appendix-grid-correct}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/gptoss_incorrect_20.png}
+\caption{20 incorrect \texttt{gpt-oss} reasoning graphs. Compared
+to the correct grid above, incorrect graphs show greater depth,
+more branching, and more frequent off-schema (grey) nodes.}
+\label{fig:appendix-grid-incorrect}
+\end{figure}
+
+\end{document}

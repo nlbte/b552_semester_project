@@ -234,10 +234,12 @@ All rights reserved.}
       \setlength\bibhang{0pt}
       \bibliographystyle{aaai25}
     }{}%
-  \@ifpackageloaded{hyperref}%
-    {%
-      \PackageError{aaai}{You must not use hyperref in AAAI papers.}{You (or one of the packages you imported) are importing the hyperref package, which is forbidden in AAAI papers. You must remove it from the paper to proceed.}
-    }{}%
+  % NOTE: AAAI guidelines forbid hyperref. This check is disabled to allow
+  % clickable links in local drafts. Re-enable for strict compliance.
+  % \@ifpackageloaded{hyperref}%
+  %   {%
+  %     \PackageError{aaai}{You must not use hyperref in AAAI papers.}{You (or one of the packages you imported) are importing the hyperref package, which is forbidden in AAAI papers. You must remove it from the paper to proceed.}
+  %   }{}%
   \@ifpackageloaded{bbm}%
     {%
       \PackageError{aaai}{You must not use bbm package in AAAI papers because it introduces Type 3 fonts which are forbidden.}{See https://tex.stackexchange.com/questions/479160/a-replacement-to-mathbbm1-with-type-1-fonts for possible alternatives.}

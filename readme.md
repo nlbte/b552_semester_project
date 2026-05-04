@@ -48,7 +48,6 @@ failed traces:
 | `visualize_graphs.py` | Draws grids of correct and incorrect reasoning graphs. |
 | `results_gptoss/` | Committed gpt-oss analysis artifacts and figures. |
 | `results_gemma4/` | Committed gemma4 analysis artifacts and figures. |
-| `_reports/` | Longer generated result reports used while writing the final paper. |
 | `appendix/figures/` | Figures copied into appendix-ready names. |
 | `paper/` | AAAI-style paper source and template files. |
 
@@ -316,8 +315,6 @@ Important committed analysis artifacts:
 | `results_*/targeted_motifs_*.csv` | Three targeted motif flags per trace. |
 | `results_*/additional_motifs_*.csv` | Five additional motif flags per trace. |
 | `results_*/error_split.csv` | Gold answer, predicted answer, relative error, and log10 error. |
-| `_reports/results.md` | Plain-English findings report. |
-| `_reports/results_technical.md` | Full technical result tables and interpretation. |
 
 ## Feature Definitions
 
@@ -514,7 +511,7 @@ than depth.
 
 ## Main Findings From the Committed Results
 
-The detailed tables live in `_reports/results_technical.md`. The most important
+The detailed tables live in `results_technical.md`. The most important
 numbers are:
 
 - gpt-oss accuracy: 159/200, or 79.5%.
@@ -540,9 +537,7 @@ or `gsm_hard_data/` layout. The final committed layout is:
 ```text
 results_gptoss/
 results_gemma4/
-_reports/
 appendix/figures/
-paper/
 ```
 
 ## Limitations
